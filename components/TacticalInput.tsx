@@ -5,9 +5,9 @@ import {
   Text,
   type TextInputProps,
   TouchableOpacity,
+  StyleSheet,
 } from "react-native";
 import { Eye, EyeOff } from "lucide-react-native";
-import { COLORS } from "@/constants/theme";
 
 interface TacticalInputProps extends TextInputProps {
   label: string;
@@ -26,36 +26,33 @@ export default function TacticalInput({
   const [isFocused, setIsFocused] = useState(false);
 
   return (
-    <View className="w-full mb-4">
+    <View style={styles.wrapper}>
       {/* Label */}
-      <Text className="text-tactical-textMuted text-xs tracking-widest uppercase mb-2 ml-1">
-        {label}
-      </Text>
+      <Text style={styles.label}>{label}</Text>
 
       {/* Input Container */}
       <View
-        className={`flex-row items-center bg-tactical-darkGray border rounded-sm px-4 py-3 ${
-          error
-            ? "border-tactical-red"
-            : isFocused
-            ? "border-tactical-green"
-            : "border-tactical-border"
-        }`}
-        style={{
-          shadowColor: isFocused ? "#4B5320" : "#000",
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: isFocused ? 0.3 : 0.2,
-          shadowRadius: 4,
-          elevation: isFocused ? 4 : 2,
-        }}
+        style={[
+          styles.inputContainer,
+          {
+            borderColor: error
+              ? "#8B0000"
+              : isFocused
+              ? "#4B5320"
+              : "#444444",
+            shadowColor: isFocused ? "#4B5320" : "#000",
+            shadowOpacity: isFocused ? 0.4 : 0.2,
+          },
+        ]}
       >
         {/* Left Icon */}
-        {icon && <View className="mr-3">{icon}</View>}
+        {icon && <View style={styles.iconLeft}>{icon}</View>}
 
         {/* Text Input */}
         <TextInput
-          className="flex-1 text-tactical-text text-base"
-          placeholderTextColor={COLORS.textDark}
+          style={styles.input}
+          placeholderTextColor="#666666"
+          selectionColor="#4B5320"
           secureTextEntry={isSecure}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
@@ -70,20 +67,60 @@ export default function TacticalInput({
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             {isSecure ? (
-              <EyeOff size={20} color={COLORS.textDark} />
+              <EyeOff size={20} color="#666666" />
             ) : (
-              <Eye size={20} color={COLORS.textMuted} />
+              <Eye size={20} color="#A0A0A0" />
             )}
           </TouchableOpacity>
         )}
       </View>
 
       {/* Error Message */}
-      {error && (
-        <Text className="text-tactical-red text-xs mt-1 ml-1 tracking-wide">
-          ⚠ {error}
-        </Text>
-      )}
+      {error && <Text style={styles.error}>⚠ {error}</Text>}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  wrapper: {
+    width: "100%",
+    marginBottom: 16,
+  },
+  label: {
+    color: "#A0A0A0",
+    fontSize: 11,
+    letterSpacing: 3,
+    textTransform: "uppercase",
+    marginBottom: 8,
+    marginLeft: 4,
+    fontWeight: "600",
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1E1E1E",
+    borderWidth: 1.5,
+    borderRadius: 3,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  iconLeft: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    color: "#E0E0E0",
+    fontSize: 16,
+    padding: 0,
+  },
+  error: {
+    color: "#8B0000",
+    fontSize: 11,
+    marginTop: 6,
+    marginLeft: 4,
+    letterSpacing: 1,
+  },
+});

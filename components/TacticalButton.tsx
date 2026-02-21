@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   type TouchableOpacityProps,
   View,
+  StyleSheet,
 } from "react-native";
 
 interface TacticalButtonProps extends TouchableOpacityProps {
@@ -14,6 +15,29 @@ interface TacticalButtonProps extends TouchableOpacityProps {
   icon?: React.ReactNode;
   fullWidth?: boolean;
 }
+
+const VARIANT_STYLES = {
+  primary: {
+    bg: "#4B5320",
+    border: "#5C6B2A",
+    text: "#E0E0E0",
+  },
+  secondary: {
+    bg: "#2A2A2A",
+    border: "#444444",
+    text: "#A0A0A0",
+  },
+  danger: {
+    bg: "#8B0000",
+    border: "#A52A2A",
+    text: "#E0E0E0",
+  },
+  ghost: {
+    bg: "transparent",
+    border: "#444444",
+    text: "#A0A0A0",
+  },
+};
 
 export default function TacticalButton({
   title,
@@ -25,57 +49,58 @@ export default function TacticalButton({
   style,
   ...props
 }: TacticalButtonProps) {
-  const baseClasses = "flex-row items-center justify-center py-4 px-6 rounded-sm";
-  const widthClass = fullWidth ? "w-full" : "";
-
-  const variantClasses = {
-    primary: "bg-tactical-green border border-tactical-greenLight",
-    secondary: "bg-tactical-mediumGray border border-tactical-border",
-    danger: "bg-tactical-red border border-tactical-redLight",
-    ghost: "bg-transparent border border-tactical-border",
-  };
-
-  const textVariantClasses = {
-    primary: "text-tactical-text",
-    secondary: "text-tactical-textMuted",
-    danger: "text-tactical-text",
-    ghost: "text-tactical-textMuted",
-  };
-
-  const disabledClass = disabled || loading ? "opacity-50" : "";
+  const colors = VARIANT_STYLES[variant];
 
   return (
     <TouchableOpacity
-      className={`${baseClasses} ${variantClasses[variant]} ${widthClass} ${disabledClass}`}
       disabled={disabled || loading}
       activeOpacity={0.7}
       style={[
+        styles.button,
         {
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.4,
-          shadowRadius: 6,
-          elevation: 8,
+          backgroundColor: colors.bg,
+          borderColor: colors.border,
+          width: fullWidth ? "100%" : undefined,
+          opacity: disabled || loading ? 0.5 : 1,
         },
         style,
       ]}
       {...props}
     >
       {loading ? (
-        <ActivityIndicator
-          size="small"
-          color={variant === "ghost" ? "#A0A0A0" : "#E0E0E0"}
-        />
+        <ActivityIndicator size="small" color={colors.text} />
       ) : (
         <>
-          {icon && <View className="mr-3">{icon}</View>}
-          <Text
-            className={`text-sm font-semibold tracking-widest uppercase ${textVariantClasses[variant]}`}
-          >
-            {title}
-          </Text>
+          {icon && <View style={styles.iconWrap}>{icon}</View>}
+          <Text style={[styles.text, { color: colors.text }]}>{title}</Text>
         </>
       )}
     </TouchableOpacity>
   );
 }
+
+const styles = StyleSheet.create({
+  button: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 3,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  iconWrap: {
+    marginRight: 12,
+  },
+  text: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 3,
+    textTransform: "uppercase",
+  },
+});

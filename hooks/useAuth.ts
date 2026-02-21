@@ -18,7 +18,6 @@ export function useAuth() {
   });
 
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAuthState({
         user: session?.user ?? null,
@@ -28,7 +27,6 @@ export function useAuth() {
       });
     });
 
-    // Listen for auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -44,33 +42,55 @@ export function useAuth() {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    setAuthState((prev) => ({ ...prev, loading: true }));
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) {
+    try {
+      setAuthState((prev) => ({ ...prev, loading: true }));
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw new Error(error.message); // Hata mesajını string olarak fırlat
+      return data;
+    } catch (err: any) {
       setAuthState((prev) => ({ ...prev, loading: false }));
-      throw error;
+      throw new Error(err?.message || "Giriş yapılamadı");
+    } finally {
+      setAuthState((prev) => ({ ...prev, loading: false }));
     }
-    return data;
   }, []);
 
   const signUp = useCallback(
     async (email: string, password: string, fullName: string) => {
-      setAuthState((prev) => ({ ...prev, loading: true }));
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: fullName },
-        },
-      });
-      if (error) {
+      try {
+        setAuthState((prev) => ({ ...prev, loading: true }));
+
+        // 1. Sign up user
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { full_name: fullName },
+          },
+        });
+
+        if (error) throw new Error(error.message); // Hata mesajını string olarak fırlat
+
+        if (data.user) {
+          // Trigger çalışmazsa diye manuel profil oluşturma
+          await supabase.from("profiles").upsert({
+            id: data.user.id,
+            full_name: fullName,
+            updated_at: new Date().toISOString(),
+          });
+        }
+
+        return data;
+      } catch (err: any) {
         setAuthState((prev) => ({ ...prev, loading: false }));
-        throw error;
+        // Hatayı string olarak fırlatıyoruz ki login.tsx'de type error olmasın
+        throw new Error(err?.message || "Kayıt işlemi başarısız");
+      } finally {
+        setAuthState((prev) => ({ ...prev, loading: false }));
       }
-      return data;
     },
     [],
   );
@@ -80,8 +100,9 @@ export function useAuth() {
     const { error } = await supabase.auth.signOut();
     if (error) {
       setAuthState((prev) => ({ ...prev, loading: false }));
-      throw error;
+      throw new Error(error.message);
     }
+    setAuthState((prev) => ({ ...prev, loading: false }));
   }, []);
 
   return {

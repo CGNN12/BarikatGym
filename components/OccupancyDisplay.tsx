@@ -1,22 +1,16 @@
 import React, { useEffect, useRef } from "react";
-import { View, Text, Animated } from "react-native";
+import { View, Text, Animated, StyleSheet } from "react-native";
 import { Users } from "lucide-react-native";
-import { COLORS } from "@/constants/theme";
 
 interface OccupancyDisplayProps {
   count: number;
-  maxCapacity?: number;
 }
 
-export default function OccupancyDisplay({
-  count,
-  maxCapacity = 50,
-}: OccupancyDisplayProps) {
+export default function OccupancyDisplay({ count }: OccupancyDisplayProps) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
-    // Pulse animation for the count number
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -32,7 +26,6 @@ export default function OccupancyDisplay({
       ])
     );
 
-    // Glow animation for the border
     const glow = Animated.loop(
       Animated.sequence([
         Animated.timing(glowAnim, {
@@ -57,87 +50,93 @@ export default function OccupancyDisplay({
     };
   }, []);
 
-  const occupancyPercent = Math.round((count / maxCapacity) * 100);
-  const isHigh = occupancyPercent > 80;
-  const isMedium = occupancyPercent > 50;
-
-  const statusColor = isHigh
-    ? COLORS.red
-    : isMedium
-    ? COLORS.amber
-    : COLORS.green;
-
-  const statusText = isHigh
-    ? "YOĞUN"
-    : isMedium
-    ? "ORTA SEVİYE"
-    : "UYGUN";
+  const isEmpty = count === 0;
+  const statusColor = isEmpty ? "#555" : "#4B5320";
 
   return (
-    <View className="w-full items-center">
-      {/* Main Occupancy Card */}
+    <View style={styles.wrapper}>
       <Animated.View
-        className="w-full bg-tactical-darkGray border border-tactical-border rounded-sm p-6 items-center"
-        style={{
-          borderColor: statusColor,
-          shadowColor: statusColor,
-          shadowOffset: { width: 0, height: 0 },
-          shadowRadius: 12,
-          elevation: 10,
-          opacity: glowAnim.interpolate({
-            inputRange: [0.3, 0.8],
-            outputRange: [0.9, 1],
-          }),
-        }}
+        style={[
+          styles.card,
+          {
+            borderColor: statusColor,
+            shadowColor: statusColor,
+            opacity: glowAnim.interpolate({
+              inputRange: [0.3, 0.8],
+              outputRange: [0.9, 1],
+            }),
+          },
+        ]}
       >
         {/* Header */}
-        <View className="flex-row items-center mb-2">
-          <Users size={16} color={COLORS.textMuted} />
-          <Text className="text-tactical-textMuted text-xs tracking-widest uppercase ml-2">
-            CANLI DOLULUK
-          </Text>
+        <View style={styles.headerRow}>
+          <Users size={16} color="#A0A0A0" />
+          <Text style={styles.headerText}>CANLI TAKİP</Text>
+          {!isEmpty && <View style={[styles.liveDot, { backgroundColor: statusColor }]} />}
         </View>
 
         {/* Big Number */}
         <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-          <Text
-            className="text-7xl font-black text-tactical-text"
-            style={{ fontVariant: ["tabular-nums"] }}
-          >
+          <Text style={[styles.bigNumber, { color: isEmpty ? "#555" : "#E0E0E0" }]}>
             {count}
           </Text>
         </Animated.View>
 
-        {/* Capacity Bar */}
-        <View className="w-full h-1.5 bg-tactical-mediumGray rounded-sm mt-4 overflow-hidden">
-          <View
-            className="h-full rounded-sm"
-            style={{
-              width: `${Math.min(occupancyPercent, 100)}%`,
-              backgroundColor: statusColor,
-            }}
-          />
-        </View>
-
-        {/* Stats row */}
-        <View className="flex-row justify-between w-full mt-3">
-          <Text className="text-tactical-textDark text-xs tracking-wider">
-            {occupancyPercent}% KAPASİTE
-          </Text>
-          <View className="flex-row items-center">
-            <View
-              className="w-2 h-2 rounded-full mr-1.5"
-              style={{ backgroundColor: statusColor }}
-            />
-            <Text
-              className="text-xs tracking-wider font-semibold"
-              style={{ color: statusColor }}
-            >
-              {statusText}
-            </Text>
-          </View>
-        </View>
+        {/* Label below number */}
+        <Text style={[styles.label, { color: isEmpty ? "#555" : "#A0A0A0" }]}>
+          {isEmpty ? "SALON BOŞ" : "AKTİF SPORCU"}
+        </Text>
       </Animated.View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  wrapper: {
+    width: "100%",
+    alignItems: "center",
+  },
+  card: {
+    width: "100%",
+    backgroundColor: "#1A1A1A",
+    borderWidth: 1,
+    borderRadius: 3,
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  headerText: {
+    color: "#A0A0A0",
+    fontSize: 10,
+    letterSpacing: 4,
+    textTransform: "uppercase",
+    marginLeft: 8,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginLeft: 10,
+  },
+  bigNumber: {
+    fontSize: 96,
+    fontWeight: "900",
+    fontVariant: ["tabular-nums"],
+    lineHeight: 110,
+  },
+  label: {
+    fontSize: 12,
+    letterSpacing: 5,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    marginTop: 4,
+  },
+});

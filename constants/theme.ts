@@ -43,4 +43,4 @@ export const AUTO_CHECKOUT_MS = 3 * 60 * 60 * 1000;
 
 // App name
 export const APP_NAME = "BARIKAT";
-export const APP_SUBTITLE = "OPEN GYM";
+export const APP_SUBTITLE = "AÇIK SPOR SALONU";

@@ -13,6 +13,7 @@ import {
 } from "@expo-google-fonts/inter";
 import * as SplashScreen from "expo-splash-screen";
 import { useAuth } from "@/hooks/useAuth";
+import { registerBackgroundAutoCheckout } from "@/utils/backgroundTasks";
 
 // Keep splash screen visible while loading
 SplashScreen.preventAutoHideAsync();
@@ -61,6 +62,11 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
+
+  // Register Ghost Protocol background task
+  useEffect(() => {
+    registerBackgroundAutoCheckout();
+  }, []);
 
   if (!fontsLoaded && !fontError) {
     return null;

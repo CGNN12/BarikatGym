@@ -15,7 +15,12 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.barikatgym.app"
+      "bundleIdentifier": "com.barikatgym.app",
+      "infoPlist": {
+        "UIBackgroundModes": ["location", "fetch"],
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "BarikatGym arka planda konumunuzu kontrol ederek 3 saatten uzun spor salonu oturumlarını otomatik olarak kapatır.",
+        "NSLocationWhenInUseUsageDescription": "BarikatGym spor salonuna yakın olduğunuzu doğrulamak için konumunuza erişir."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +28,14 @@
         "backgroundColor": "#121212"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.barikatgym.app"
+      "package": "com.barikatgym.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "RECEIVE_BOOT_COMPLETED"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -37,7 +49,18 @@
         {
           "cameraPermission": "BarikatGym needs camera access to scan QR codes for gym entry/exit."
         }
-      ]
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "BarikatGym arka planda konumunuzu kontrol ederek 3 saatten uzun spor salonu oturumlarını otomatik olarak kapatır.",
+          "locationWhenInUsePermission": "BarikatGym spor salonuna yakın olduğunuzu doğrulamak için konumunuza erişir.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "expo-background-fetch",
+      "expo-task-manager"
     ]
   }
 }

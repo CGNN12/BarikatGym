@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Barikat Gym — Test QR Kodu</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: #121212;
+        color: #e0e0e0;
+        font-family: "Segoe UI", system-ui, sans-serif;
+      }
+      h1 {
+        font-size: 28px;
+        letter-spacing: 8px;
+        margin-bottom: 4px;
+      }
+      .subtitle {
+        color: #4b5320;
+        font-size: 11px;
+        letter-spacing: 6px;
+        margin-bottom: 40px;
+      }
+      .qr-container {
+        background: #1a1a1a;
+        border: 2px solid #4b5320;
+        border-radius: 4px;
+        padding: 32px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .qr-label {
+        color: #a0a0a0;
+        font-size: 10px;
+        letter-spacing: 4px;
+        text-transform: uppercase;
+        margin-bottom: 20px;
+      }
+      canvas {
+        border: 1px solid #333;
+      }
+      .qr-value {
+        margin-top: 20px;
+        color: #4b5320;
+        font-size: 12px;
+        letter-spacing: 2px;
+        font-weight: 600;
+        background: rgba(75, 83, 32, 0.1);
+        padding: 8px 16px;
+        border-radius: 3px;
+        border: 1px solid rgba(75, 83, 32, 0.3);
+      }
+      .instructions {
+        margin-top: 40px;
+        max-width: 420px;
+        text-align: center;
+        color: #888;
+        font-size: 13px;
+        line-height: 1.8;
+      }
+      .instructions strong {
+        color: #e0e0e0;
+      }
+      .footer {
+        margin-top: 48px;
+        color: #444;
+        font-size: 9px;
+        letter-spacing: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>BARİKAT</h1>
+    <div class="subtitle">DEFENCE SYSTEMS</div>
+
+    <div class="qr-container">
+      <div class="qr-label">Giriş / Çıkış QR Kodu</div>
+      <canvas id="qr-canvas"></canvas>
+      <div class="qr-value">BARİKAT_GYM_ACCESS</div>
+    </div>
+
+    <div class="instructions">
+      <strong>Test Talimatı:</strong><br />
+      Bu QR kodu telefonunuzun kamerasıyla taratarak<br />
+      Barikat Gym uygulamasında giriş/çıkış yapabilirsiniz.<br /><br />
+      <strong>1. Tarama →</strong> Otomatik giriş kaydı oluşturulur<br />
+      <strong>2. Tekrar Tarama →</strong> Otomatik çıkış kaydedilir
+    </div>
+
+    <div class="footer">BARIKAT DEFENCE • TEST QR KODU • v1.0.0</div>
+
+    <!-- QRCode.js library from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+    <script>
+      const canvas = document.getElementById("qr-canvas");
+      QRCode.toCanvas(
+        canvas,
+        "BARİKAT_GYM_ACCESS",
+        {
+          width: 280,
+          margin: 2,
+          color: {
+            dark: "#E0E0E0",
+            light: "#1A1A1A",
+          },
+          errorCorrectionLevel: "H",
+        },
+        function (error) {
+          if (error) {
+            console.error("QR generation failed:", error);
+            // Fallback: use a simple API
+            const img = document.createElement("img");
+            img.src =
+              "https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=" +
+              encodeURIComponent("BARİKAT_GYM_ACCESS") +
+              "&bgcolor=1A1A1A&color=E0E0E0";
+            img.width = 280;
+            img.height = 280;
+            canvas.replaceWith(img);
+          }
+        },
+      );
+    </script>
+  </body>
+</html>

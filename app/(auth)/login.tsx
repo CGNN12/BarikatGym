@@ -6,26 +6,37 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  Animated,
+  TouchableOpacity,
+  StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Mail, Lock, Shield } from "lucide-react-native";
-import { COLORS, APP_NAME, APP_SUBTITLE } from "@/constants/theme";
+import { Mail, Lock, Shield, User } from "lucide-react-native";
+import { APP_NAME, APP_SUBTITLE } from "@/constants/theme";
 import { useAuth } from "@/hooks/useAuth";
 import TacticalInput from "@/components/TacticalInput";
 import TacticalButton from "@/components/TacticalButton";
 import DeerLogo from "@/components/DeerLogo";
 
 export default function LoginScreen() {
-  const { signIn, loading } = useAuth();
+  const { signIn, signUp, loading } = useAuth();
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
-    {}
-  );
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [errors, setErrors] = useState<{
+    fullName?: string;
+    email?: string;
+    password?: string;
+    confirmPassword?: string;
+  }>({});
 
   const validate = (): boolean => {
-    const newErrors: { email?: string; password?: string } = {};
+    const newErrors: typeof errors = {};
+
+    if (isSignUp && !fullName.trim()) {
+      newErrors.fullName = "Ad Soyad gereklidir";
+    }
 
     if (!email.trim()) {
       newErrors.email = "E-posta adresi gereklidir";
@@ -39,90 +50,123 @@ export default function LoginScreen() {
       newErrors.password = "Şifre en az 6 karakter olmalıdır";
     }
 
+    if (isSignUp) {
+      if (!confirmPassword) {
+        newErrors.confirmPassword = "Şifre tekrarı gereklidir";
+      } else if (password !== confirmPassword) {
+        newErrors.confirmPassword = "Şifreler eşleşmiyor";
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleLogin = async () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
+    setErrors({});
 
     try {
-      await signIn(email.trim(), password);
-    } catch (error: any) {
+      if (isSignUp) {
+        await signUp(email.trim(), password, fullName.trim());
+        Alert.alert(
+          "KAYIT BAŞARILI",
+          "Doğrulama bağlantısı e-posta adresinize gönderildi. Lütfen gelen kutunuzu (ve Spam/Gereksiz klasörünü) kontrol ediniz.",
+          [{ text: "TAMAM", onPress: () => setIsSignUp(false) }]
+        );
+      } else {
+        await signIn(email.trim(), password);
+      }
+    } catch (error: unknown) {
+      let errorMessage = "Bir hata oluştu. Lütfen tekrar deneyin.";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === "string") {
+        errorMessage = error;
+      }
+
       Alert.alert(
-        "GİRİŞ BAŞARISIZ",
-        error.message || "Kimlik doğrulama hatası. Tekrar deneyin.",
+        isSignUp ? "KAYIT BAŞARISIZ" : "GİRİŞ BAŞARISIZ",
+        errorMessage,
         [{ text: "ANLAŞILDI", style: "cancel" }]
       );
     }
   };
 
+  const toggleMode = () => {
+    setIsSignUp(!isSignUp);
+    setErrors({});
+    setConfirmPassword("");
+  };
+
   return (
-    <SafeAreaView className="flex-1 bg-tactical-black">
+    <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
+        style={styles.flex}
       >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View className="flex-1 px-6 pt-8 pb-6 justify-between">
-            {/* ═══════════ HEADER SECTION ═══════════ */}
-            <View className="items-center">
-              {/* Deer Logo */}
+          <View style={styles.container}>
+            {/* Header Section */}
+            <View style={styles.headerSection}>
               <DeerLogo width={180} height={200} opacity={0.2} />
-
-              {/* App Name */}
-              <View className="items-center mt-2">
-                <Text
-                  className="text-4xl tracking-[0.35em] text-tactical-text"
-                  style={{ fontFamily: "Inter_900Black" }}
-                >
-                  {APP_NAME}
-                </Text>
-                <View className="flex-row items-center mt-1">
-                  <View className="h-[1px] w-8 bg-tactical-green mr-3" />
-                  <Text
-                    className="text-xs tracking-[0.3em] text-tactical-green"
-                    style={{ fontFamily: "Inter_500Medium" }}
-                  >
-                    {APP_SUBTITLE}
-                  </Text>
-                  <View className="h-[1px] w-8 bg-tactical-green ml-3" />
+              <View style={styles.titleWrap}>
+                <Text style={styles.appName}>{APP_NAME}</Text>
+                <View style={styles.subtitleRow}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.subtitle}>{APP_SUBTITLE}</Text>
+                  <View style={styles.dividerLine} />
                 </View>
               </View>
 
-              {/* Tactical divider */}
-              <View className="w-full mt-8 mb-2">
-                <View className="flex-row items-center">
-                  <View className="flex-1 h-[1px] bg-tactical-border" />
-                  <View className="mx-3 flex-row items-center">
-                    <Shield size={12} color={COLORS.textDark} />
-                    <Text className="text-tactical-textDark text-[10px] tracking-widest ml-1.5 uppercase">
-                      Güvenli Giriş
-                    </Text>
-                  </View>
-                  <View className="flex-1 h-[1px] bg-tactical-border" />
+              <View style={styles.secureDivider}>
+                <View style={styles.secureLine} />
+                <View style={styles.secureLabel}>
+                  <Shield size={12} color="#555" />
+                  <Text style={styles.secureLabelText}>
+                    {isSignUp ? "YENİ KAYIT" : "GÜVENLİ GİRİŞ"}
+                  </Text>
                 </View>
+                <View style={styles.secureLine} />
               </View>
             </View>
 
-            {/* ═══════════ FORM SECTION ═══════════ */}
-            <View className="mt-6">
+            {/* Form Section */}
+            <View style={styles.formSection}>
+              {isSignUp && (
+                <TacticalInput
+                  label="Ad Soyad"
+                  placeholder="Adınız Soyadınız"
+                  value={fullName}
+                  onChangeText={(text) => {
+                    setFullName(text);
+                    if (errors.fullName)
+                      setErrors((e) => ({ ...e, fullName: undefined }));
+                  }}
+                  autoComplete="name"
+                  error={errors.fullName}
+                  icon={<User size={18} color="#555" />}
+                />
+              )}
+
               <TacticalInput
                 label="E-Posta"
                 placeholder="operatör@barikat.com"
                 value={email}
                 onChangeText={(text) => {
                   setEmail(text);
-                  if (errors.email) setErrors((e) => ({ ...e, email: undefined }));
+                  if (errors.email)
+                    setErrors((e) => ({ ...e, email: undefined }));
                 }}
                 keyboardType="email-address"
                 autoComplete="email"
                 error={errors.email}
-                icon={<Mail size={18} color={COLORS.textDark} />}
+                icon={<Mail size={18} color="#555" />}
               />
 
               <TacticalInput
@@ -136,34 +180,62 @@ export default function LoginScreen() {
                 }}
                 secureTextEntry
                 error={errors.password}
-                icon={<Lock size={18} color={COLORS.textDark} />}
+                icon={<Lock size={18} color="#555" />}
               />
 
-              {/* Login Button */}
-              <View className="mt-6">
+              {isSignUp && (
+                <TacticalInput
+                  label="Şifre Tekrar"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChangeText={(text) => {
+                    setConfirmPassword(text);
+                    if (errors.confirmPassword)
+                      setErrors((e) => ({
+                        ...e,
+                        confirmPassword: undefined,
+                      }));
+                  }}
+                  secureTextEntry
+                  error={errors.confirmPassword}
+                  icon={<Lock size={18} color="#555" />}
+                />
+              )}
+
+              <View style={styles.buttonWrap}>
                 <TacticalButton
-                  title="SİSTEME GİRİŞ"
-                  onPress={handleLogin}
+                  title={isSignUp ? "KAYIT OL" : "SİSTEME GİRİŞ"}
+                  onPress={handleSubmit}
                   loading={loading}
-                  icon={<Shield size={18} color={COLORS.text} />}
+                  icon={<Shield size={18} color="#E0E0E0" />}
                 />
               </View>
+
+              <TouchableOpacity
+                onPress={toggleMode}
+                style={styles.toggleButton}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.toggleText}>
+                  {isSignUp
+                    ? "Zaten hesabınız var mı? "
+                    : "Hesabınız yok mu? "}
+                </Text>
+                <Text style={styles.toggleHighlight}>
+                  {isSignUp ? "Giriş Yap" : "Kayıt Ol"}
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            {/* ═══════════ FOOTER SECTION ═══════════ */}
-            <View className="items-center mt-8">
-              {/* Bottom decorative line */}
-              <View className="flex-row items-center mt-4 w-full">
-                <View className="flex-1 h-[1px] bg-tactical-border" />
-                <Text className="text-tactical-textDark text-[9px] tracking-widest mx-3">
-                  BARIKAT DEFENCE SYSTEMS
-                </Text>
-                <View className="flex-1 h-[1px] bg-tactical-border" />
+            {/* Footer Section */}
+            <View style={styles.footerSection}>
+              <View style={styles.footerDivider}>
+                <View style={styles.secureLine} />
+                <Text style={styles.footerText}>BARİKAT SAVUNMA SİSTEMLERİ</Text>
+                <View style={styles.secureLine} />
               </View>
-
-              {/* Version */}
-              <Text className="text-tactical-textDark text-[9px] tracking-wider mt-3">
-                v1.0.0 • SECURED CONNECTION
+              <Text style={styles.versionText}>
+                v1.0.0 • GÜVENLİ BAĞLANTI
               </Text>
             </View>
           </View>
@@ -172,3 +244,95 @@ export default function LoginScreen() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: "#121212" },
+  flex: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
+  container: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 24,
+    justifyContent: "space-between",
+  },
+  headerSection: { alignItems: "center" },
+  titleWrap: { alignItems: "center", marginTop: 8 },
+  appName: {
+    fontSize: 34,
+    fontWeight: "900",
+    letterSpacing: 12,
+    color: "#E0E0E0",
+  },
+  subtitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  dividerLine: {
+    height: 1,
+    width: 32,
+    backgroundColor: "#4B5320",
+    marginHorizontal: 10,
+  },
+  subtitle: {
+    fontSize: 11,
+    letterSpacing: 6,
+    color: "#4B5320",
+    fontWeight: "500",
+  },
+  secureDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    marginTop: 28,
+    marginBottom: 8,
+  },
+  secureLine: { flex: 1, height: 1, backgroundColor: "#333" },
+  secureLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+  },
+  secureLabelText: {
+    color: "#555",
+    fontSize: 10,
+    letterSpacing: 3,
+    textTransform: "uppercase",
+    marginLeft: 6,
+  },
+  formSection: { marginTop: 20 },
+  buttonWrap: { marginTop: 20 },
+  toggleButton: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
+    paddingVertical: 8,
+  },
+  toggleText: { color: "#888", fontSize: 13 },
+  toggleHighlight: {
+    color: "#4B5320",
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  footerSection: { alignItems: "center", marginTop: 32 },
+  footerDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    marginTop: 16,
+  },
+  footerText: {
+    color: "#444",
+    fontSize: 9,
+    letterSpacing: 3,
+    marginHorizontal: 12,
+  },
+  versionText: {
+    color: "#444",
+    fontSize: 9,
+    letterSpacing: 2,
+    marginTop: 10,
+  },
+});
