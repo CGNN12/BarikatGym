@@ -209,7 +209,7 @@ export default function DashboardScreen() {
 
         {/* Greeting */}
         <View style={s.greetingWrap}>
-          <Text style={s.greetingLabel}>Hoş Geldin, Operatör</Text>
+          <Text style={s.greetingLabel}>Hoş Geldin, Sporcu</Text>
           <Text style={s.greetingName}>
             {profile?.full_name || "Yükleniyor..."}
           </Text>
@@ -220,7 +220,7 @@ export default function DashboardScreen() {
           <OccupancyDisplay count={activeCount} />
         </View>
 
-        {/* ═══════════ FIELD INTELLIGENCE — ACTIVITY CHART ═══════════ */}
+        {/* ═══════════ SALON TRAFİĞİ — YOĞUNLUK ANALİZİ ═══════════ */}
         <View style={s.section}>
           <ActivityChart />
         </View>
@@ -244,7 +244,7 @@ export default function DashboardScreen() {
                 <Text style={[s.warningTitle, { color: warningColor }]}>
                   {isExpired
                     ? "⚠ ÜYELİK SONA ERDİ"
-                    : "⚠ TAKTİK UYARI"}
+                    : "⚠ ÜYELİK UYARISI"}
                 </Text>
                 <Text style={s.warningBody}>
                   {isExpired
@@ -283,7 +283,7 @@ export default function DashboardScreen() {
         <View style={s.section}>
           <View style={s.sectionDivider}>
             <View style={s.dividerLine} />
-            <Text style={s.dividerLabel}>Operasyonlar</Text>
+            <Text style={s.dividerLabel}>İşlemler</Text>
             <View style={s.dividerLine} />
           </View>
 

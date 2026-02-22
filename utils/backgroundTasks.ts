@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { GYM_CONFIG, haversineDistance } from "@/lib/location";
 
 // ═══════════════════════════════════════════════════════════
-// GHOST PROTOCOL — BACKGROUND AUTO CHECK-OUT
+// OTOMATIK CIKIS — BACKGROUND AUTO CHECK-OUT
 // Time + Distance hybrid control
 // Runs periodically in the background to auto-checkout users
 // who have been inside for 3+ hours AND are 100m+ from gym
@@ -17,7 +17,7 @@ const MAX_DISTANCE_METERS = 100;
 
 // ─── Define the background task ───
 TaskManager.defineTask(AUTO_CHECKOUT_TASK, async () => {
-  console.log("🔄 [GHOST PROTOCOL] Background task triggered");
+  console.log("🔄 [OTOMATIK CIKIS] Background task triggered");
 
   try {
     // Step 1: Get all active sessions (status = 'inside')
@@ -27,12 +27,12 @@ TaskManager.defineTask(AUTO_CHECKOUT_TASK, async () => {
       .eq("status", "inside");
 
     if (fetchError) {
-      console.error("❌ [GHOST PROTOCOL] DB fetch error:", fetchError.message);
+      console.error("❌ [OTOMATIK CIKIS] DB fetch error:", fetchError.message);
       return BackgroundFetch.BackgroundFetchResult.Failed;
     }
 
     if (!activeLogs || activeLogs.length === 0) {
-      console.log("✅ [GHOST PROTOCOL] No active sessions found");
+      console.log("✅ [OTOMATIK CIKIS] No active sessions found");
       return BackgroundFetch.BackgroundFetchResult.NoData;
     }
 
@@ -47,7 +47,7 @@ TaskManager.defineTask(AUTO_CHECKOUT_TASK, async () => {
 
         if (elapsed < THREE_HOURS_MS) {
           console.log(
-            `⏳ [GHOST PROTOCOL] User ${log.user_id} — only ${Math.round(elapsed / 60000)} min elapsed, skipping`,
+            `⏳ [OTOMATIK CIKIS] User ${log.user_id} — only ${Math.round(elapsed / 60000)} min elapsed, skipping`,
           );
           continue;
         }
@@ -60,7 +60,7 @@ TaskManager.defineTask(AUTO_CHECKOUT_TASK, async () => {
           });
         } catch (locError) {
           console.warn(
-            `📍 [GHOST PROTOCOL] Location unavailable for user ${log.user_id}, skipping`,
+            `📍 [OTOMATIK CIKIS] Location unavailable for user ${log.user_id}, skipping`,
           );
           continue;
         }
@@ -74,7 +74,7 @@ TaskManager.defineTask(AUTO_CHECKOUT_TASK, async () => {
         );
 
         console.log(
-          `📐 [GHOST PROTOCOL] User ${log.user_id} — Distance: ${distance.toFixed(1)}m, Elapsed: ${Math.round(elapsed / 60000)} min`,
+          `📐 [OTOMATIK CIKIS] User ${log.user_id} — Distance: ${distance.toFixed(1)}m, Elapsed: ${Math.round(elapsed / 60000)} min`,
         );
 
         // Step 5: If distance > 100m, auto-checkout
@@ -89,24 +89,24 @@ TaskManager.defineTask(AUTO_CHECKOUT_TASK, async () => {
 
           if (updateError) {
             console.error(
-              `❌ [GHOST PROTOCOL] Failed to auto-checkout user ${log.user_id}:`,
+              `❌ [OTOMATIK CIKIS] Failed to auto-checkout user ${log.user_id}:`,
               updateError.message,
             );
           } else {
             processedCount++;
             console.log(
-              `✅ [GHOST PROTOCOL] Auto-checked out user ${log.user_id} — Distance: ${distance.toFixed(1)}m, Duration: ${Math.round(elapsed / 60000)} min`,
+              `✅ [OTOMATIK CIKIS] Auto-checked out user ${log.user_id} — Distance: ${distance.toFixed(1)}m, Duration: ${Math.round(elapsed / 60000)} min`,
             );
           }
         } else {
           console.log(
-            `📍 [GHOST PROTOCOL] User ${log.user_id} still near gym (${distance.toFixed(1)}m), keeping session active`,
+            `📍 [OTOMATIK CIKIS] User ${log.user_id} still near gym (${distance.toFixed(1)}m), keeping session active`,
           );
         }
       } catch (logError) {
         // Don't crash if one user fails, continue with others
         console.error(
-          `❌ [GHOST PROTOCOL] Error processing user ${log.user_id}:`,
+          `❌ [OTOMATIK CIKIS] Error processing user ${log.user_id}:`,
           logError,
         );
         continue;
@@ -114,14 +114,14 @@ TaskManager.defineTask(AUTO_CHECKOUT_TASK, async () => {
     }
 
     console.log(
-      `🏁 [GHOST PROTOCOL] Task completed. Auto-checked out ${processedCount} users.`,
+      `🏁 [OTOMATIK CIKIS] Task completed. Auto-checked out ${processedCount} users.`,
     );
 
     return processedCount > 0
       ? BackgroundFetch.BackgroundFetchResult.NewData
       : BackgroundFetch.BackgroundFetchResult.NoData;
   } catch (error) {
-    console.error("❌ [GHOST PROTOCOL] Fatal error:", error);
+    console.error("❌ [OTOMATIK CIKIS] Fatal error:", error);
     return BackgroundFetch.BackgroundFetchResult.Failed;
   }
 });
@@ -137,7 +137,7 @@ export async function registerBackgroundAutoCheckout(): Promise<void> {
       status === BackgroundFetch.BackgroundFetchStatus.Denied
     ) {
       console.warn(
-        "⚠️ [GHOST PROTOCOL] Background fetch is restricted or denied",
+        "⚠️ [OTOMATIK CIKIS] Background fetch is restricted or denied",
       );
       return;
     }
@@ -146,7 +146,7 @@ export async function registerBackgroundAutoCheckout(): Promise<void> {
     const isRegistered =
       await TaskManager.isTaskRegisteredAsync(AUTO_CHECKOUT_TASK);
     if (isRegistered) {
-      console.log("✅ [GHOST PROTOCOL] Task already registered");
+      console.log("✅ [OTOMATIK CIKIS] Task already registered");
       return;
     }
 
@@ -158,9 +158,9 @@ export async function registerBackgroundAutoCheckout(): Promise<void> {
       startOnBoot: true, // Start on device boot (Android)
     });
 
-    console.log("✅ [GHOST PROTOCOL] Background task registered successfully");
+    console.log("✅ [OTOMATIK CIKIS] Background task registered successfully");
   } catch (error) {
-    console.error("❌ [GHOST PROTOCOL] Failed to register task:", error);
+    console.error("❌ [OTOMATIK CIKIS] Failed to register task:", error);
   }
 }
 
@@ -171,9 +171,9 @@ export async function unregisterBackgroundAutoCheckout(): Promise<void> {
       await TaskManager.isTaskRegisteredAsync(AUTO_CHECKOUT_TASK);
     if (isRegistered) {
       await BackgroundFetch.unregisterTaskAsync(AUTO_CHECKOUT_TASK);
-      console.log("🗑️ [GHOST PROTOCOL] Background task unregistered");
+      console.log("🗑️ [OTOMATIK CIKIS] Background task unregistered");
     }
   } catch (error) {
-    console.error("❌ [GHOST PROTOCOL] Failed to unregister task:", error);
+    console.error("❌ [OTOMATIK CIKIS] Failed to unregister task:", error);
   }
 }

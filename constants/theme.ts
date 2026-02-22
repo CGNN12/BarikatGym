@@ -42,5 +42,5 @@ export const MEMBERSHIP_WARNING_DAYS = 7;
 export const AUTO_CHECKOUT_MS = 3 * 60 * 60 * 1000;
 
 // App name
-export const APP_NAME = "BARIKAT";
-export const APP_SUBTITLE = "AÇIK SPOR SALONU";
+export const APP_NAME = "BARIKAT  ";
+export const APP_SUBTITLE = "SPOR SALONU";

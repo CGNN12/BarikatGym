@@ -213,8 +213,8 @@ export default function ScanScreen() {
         setScanResult("error");
         setResultMessage("Konum İzni Reddedildi");
         Alert.alert(
-          "🛡️ GÜVENLİK PROTOKOLÜ",
-          "Konum erişimi reddedildi. Bu güvenlik özelliği, salon dışından işlem yapılmasını engeller.\n\nLütfen Ayarlar'dan konum iznini etkinleştirin.",
+          "🛡️ KONUM UYARISI",
+           "Konum erişimi reddedildi. Bu güvenlik özelliği, salon dışından işlem yapılmasını engeller.\n\nLütfen Ayarlar'dan konum iznini etkinleştirin.",
           [{ text: "ANLAŞILDI", onPress: resetScan }]
         );
         setProcessing(false);
@@ -239,10 +239,10 @@ export default function ScanScreen() {
       if (locationResult && !locationResult.verified) {
         Vibration.vibrate([0, 300, 100, 300, 100, 300]); // Harsh pattern
         setScanResult("error");
-        setResultMessage("Yetkisiz Bölge!");
+        setResultMessage("Alan Dışı!");
         Alert.alert(
-          "🚨 GÜVENLİK İHLALİ",
-          `YETKİSİZ BÖLGE TESPİT EDİLDİ!\n\nBu işlem için spor salonunda olmanız gerekmektedir.\n\n📍 Mesafe: ${locationResult.distanceMeters.toFixed(1)} metre\n🎯 İzin verilen: ${GYM_CONFIG.radiusMeters} metre\n\nSalon dışından giriş/çıkış işlemi yapılamaz.`,
+          "🚨 ERİŞİM UYARISI",
+           `ALAN DIŞI TESPİT EDİLDİ!\n\nBu işlem için spor salonunda olmanız gerekmektedir.\n\n📍 Mesafe: ${locationResult.distanceMeters.toFixed(1)} metre\n🎯 İzin verilen: ${GYM_CONFIG.radiusMeters} metre\n\nSalon dışından giriş/çıkış işlemi yapılamaz.`,
           [{ text: "ANLAŞILDI", onPress: resetScan, style: "destructive" }]
         );
         setProcessing(false);
@@ -338,7 +338,7 @@ export default function ScanScreen() {
       case "requesting_permission":
         return "KONUM İZNİ İSTENİYOR...";
       case "acquiring_signal":
-        return "GPS SİNYALİ: ARANIYOR...";
+        return "KONUM ALINIYOR...";
       case "calculating_distance":
         return "MESAFE HESAPLANIYOR...";
       case "verifying_zone":
@@ -349,8 +349,8 @@ export default function ScanScreen() {
         return "KONUM İZNİ REDDEDİLDİ ✗";
       case "failed":
         return "GPS SİNYALİ ALINAMADI ✗";
-      case "out_of_zone":
-        return "YETKİSİZ BÖLGE! ✗";
+       case "out_of_zone":
+         return "ALAN DIŞI! ✗";
       default:
         return "";
     }

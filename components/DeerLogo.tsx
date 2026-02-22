@@ -1,22 +1,29 @@
 import React from "react";
-import { View, Image, StyleSheet } from "react-native";
+import { View, Image } from "react-native";
 
 interface DeerLogoProps {
   width?: number;
   height?: number;
   opacity?: number;
-  color?: string; // Renk prop'u resim modunda etkisiz kalabilir ama uyumluluk için tutuyoruz
+  color?: string;
 }
 
 export default function DeerLogo({
   width = 200,
   height = 220,
-  opacity = 1,
+  opacity = 0.25,
 }: DeerLogoProps) {
   return (
-    <View style={{ width, height, opacity, alignItems: "center", justifyContent: "center" }}>
+    <View
+      style={{
+        width,
+        height,
+        opacity,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
       <Image
-        // ⚠️ Lütfen 'assets' klasörüne 'logo.png' adında görselinizi ekleyin
         source={require("@/assets/logo.png")}
         style={{
           width: "100%",

@@ -7,51 +7,51 @@ interface OccupancyDisplayProps {
 }
 
 export default function OccupancyDisplay({ count }: OccupancyDisplayProps) {
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0.3)).current;
+  // Subtle khaki green border glow animation
+  const glowAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.05,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
     const glow = Animated.loop(
       Animated.sequence([
         Animated.timing(glowAnim, {
-          toValue: 0.8,
-          duration: 2000,
-          useNativeDriver: true,
+          toValue: 1,
+          duration: 2500,
+          useNativeDriver: false,
         }),
         Animated.timing(glowAnim, {
-          toValue: 0.3,
-          duration: 2000,
-          useNativeDriver: true,
+          toValue: 0,
+          duration: 2500,
+          useNativeDriver: false,
         }),
       ])
     );
 
-    pulse.start();
     glow.start();
-
-    return () => {
-      pulse.stop();
-      glow.stop();
-    };
+    return () => glow.stop();
   }, []);
 
   const isEmpty = count === 0;
   const statusColor = isEmpty ? "#555" : "#4B5320";
+
+  // Interpolate border opacity for subtle glow effect
+  const borderOpacity = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.3, 0.8],
+  });
+
+  const borderColor = isEmpty
+    ? "#333"
+    : glowAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["rgba(75,83,32,0.3)", "rgba(75,83,32,0.8)"],
+      });
+
+  const shadowOpacity = isEmpty
+    ? 0
+    : glowAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.1, 0.5],
+      });
 
   return (
     <View style={styles.wrapper}>
@@ -59,12 +59,9 @@ export default function OccupancyDisplay({ count }: OccupancyDisplayProps) {
         style={[
           styles.card,
           {
-            borderColor: statusColor,
+            borderColor: borderColor,
             shadowColor: statusColor,
-            opacity: glowAnim.interpolate({
-              inputRange: [0.3, 0.8],
-              outputRange: [0.9, 1],
-            }),
+            shadowOpacity: shadowOpacity,
           },
         ]}
       >
@@ -72,18 +69,29 @@ export default function OccupancyDisplay({ count }: OccupancyDisplayProps) {
         <View style={styles.headerRow}>
           <Users size={16} color="#A0A0A0" />
           <Text style={styles.headerText}>CANLI TAKİP</Text>
-          {!isEmpty && <View style={[styles.liveDot, { backgroundColor: statusColor }]} />}
+          {!isEmpty && (
+            <View
+              style={[styles.liveDot, { backgroundColor: statusColor }]}
+            />
+          )}
         </View>
 
-        {/* Big Number */}
-        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-          <Text style={[styles.bigNumber, { color: isEmpty ? "#555" : "#E0E0E0" }]}>
+        {/* Big Number — no white flash, no scale pulse */}
+        <View>
+          <Text
+            style={[
+              styles.bigNumber,
+              { color: isEmpty ? "#555" : "#E0E0E0" },
+            ]}
+          >
             {count}
           </Text>
-        </Animated.View>
+        </View>
 
         {/* Label below number */}
-        <Text style={[styles.label, { color: isEmpty ? "#555" : "#A0A0A0" }]}>
+        <Text
+          style={[styles.label, { color: isEmpty ? "#555" : "#A0A0A0" }]}
+        >
           {isEmpty ? "SALON BOŞ" : "AKTİF SPORCU"}
         </Text>
       </Animated.View>

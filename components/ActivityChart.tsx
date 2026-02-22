@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { LineChart } from "react-native-chart-kit";
 import {
-  Crosshair,
+  BarChart3,
   TrendingUp,
   TrendingDown,
   Radio,
@@ -30,7 +30,17 @@ type DateRange = 7 | 30;
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const CHART_WIDTH = SCREEN_WIDTH - 48;
-const DISPLAY_HOURS = [6, 9, 12, 15, 18, 21, 24];
+
+// Chart X-axis: 3-hour intervals from 06:00 to 00:00
+const CHART_HOURS = [6, 9, 12, 15, 18, 21, 0];
+const CHART_LABELS = ["06:00", "09:00", "12:00", "15:00", "18:00", "21:00", "00:00"];
+
+// 3 main time periods for intensity analysis
+const TIME_PERIODS = [
+  { key: "sabah", label: "Sabah", startHour: 6, endHour: 11 },
+  { key: "oglen", label: "Öğlen", startHour: 12, endHour: 17 },
+  { key: "aksam", label: "Akşam", startHour: 18, endHour: 23 },
+];
 
 // ═══════════ BİLEŞEN ═══════════
 
@@ -72,30 +82,7 @@ export default function ActivityChart() {
         hourCounts[hour]++;
       });
 
-      // Group into 3-hour intervals for chart display
-      const intervalCounts: Record<number, number> = {};
-      const intervals = [6, 9, 12, 15, 18, 21, 0]; // 0 represents 24:00 (midnight)
-      intervals.forEach((start) => {
-        const end = start === 0 ? 6 : start + 3; // 0 = midnight bucket covers 0-5
-        let total = 0;
-        if (start === 0) {
-          // 00:00 - 05:59
-          for (let h = 0; h < 6; h++) total += hourCounts[h];
-        } else {
-          for (let h = start; h < Math.min(start + 3, 24); h++) total += hourCounts[h];
-        }
-        intervalCounts[start] = total;
-      });
-
       const result: HourlyData[] = Object.entries(hourCounts).map(
-        ([hour, count]) => ({
-          hour: parseInt(hour),
-          count: Math.round((count / dateRange) * 10) / 10,
-        })
-      );
-
-      // Also store interval data for chart
-      const intervalResult: HourlyData[] = Object.entries(intervalCounts).map(
         ([hour, count]) => ({
           hour: parseInt(hour),
           count: Math.round((count / dateRange) * 10) / 10,
@@ -139,10 +126,10 @@ export default function ActivityChart() {
     });
 
     const morningActivity = activeHours
-      .filter((d) => d.hour >= 6 && d.hour <= 12)
+      .filter((d) => d.hour >= 6 && d.hour <= 11)
       .reduce((sum, d) => sum + d.count, 0);
     const eveningActivity = activeHours
-      .filter((d) => d.hour >= 17 && d.hour <= 22)
+      .filter((d) => d.hour >= 18 && d.hour <= 23)
       .reduce((sum, d) => sum + d.count, 0);
 
     const trend =
@@ -157,32 +144,26 @@ export default function ActivityChart() {
 
   const hasData = analysis.totalActivity > 0;
 
+  // ─── Chart data: 3-hour intervals on X-axis ───
   const chartData = useMemo(() => {
-    const labels = DISPLAY_HOURS.map((h) => {
-      const displayH = h === 24 ? 0 : h;
-      return displayH < 10 ? `0${displayH}:00` : `${displayH}:00`;
-    });
-
-    // Group hourly data into 3-hour intervals
-    const values = DISPLAY_HOURS.map((h) => {
-      if (h === 24) {
-        // Midnight bucket: 0-5
-        return hourlyData
-          .filter((d) => d.hour >= 0 && d.hour < 6)
-          .reduce((sum, d) => sum + d.count, 0);
+    // Aggregate hourly data into 3-hour buckets for the chart
+    const bucketValues = CHART_HOURS.map((bucketStart) => {
+      // Each bucket covers 3 hours: bucketStart to bucketStart+2
+      let sum = 0;
+      for (let offset = 0; offset < 3; offset++) {
+        const h = (bucketStart + offset) % 24;
+        const entry = hourlyData.find((d) => d.hour === h);
+        if (entry) sum += entry.count;
       }
-      // e.g. h=6 covers 6, 7, 8
-      return hourlyData
-        .filter((d) => d.hour >= h && d.hour < h + 3)
-        .reduce((sum, d) => sum + d.count, 0);
+      return sum;
     });
 
     return {
-      labels,
+      labels: CHART_LABELS,
       datasets: [
         {
-          data: values.some((v) => v > 0) ? values : values.map(() => 0),
-          strokeWidth: 2,
+          data: bucketValues.some((v) => v > 0) ? bucketValues : bucketValues.map(() => 0),
+          strokeWidth: 3,
         },
       ],
     };
@@ -218,8 +199,8 @@ export default function ActivityChart() {
         style={s.titleRow}
       >
         <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Crosshair size={14} color="#4B5320" />
-          <Text style={s.titleText}>SAHA İSTİHBARATI</Text>
+          <BarChart3 size={14} color="#4B5320" />
+          <Text style={s.titleText}>YOĞUNLUK ANALİZİ</Text>
         </View>
         <Text style={s.collapseHint}>{collapsed ? "▼" : "▲"}</Text>
       </TouchableOpacity>
@@ -250,7 +231,6 @@ export default function ActivityChart() {
           </Text>
         </TouchableOpacity>
         <View style={{ flex: 1 }} />
-        <Text style={s.classifiedWatermark}>GİZLİ</Text>
       </View>
 
       {/* ═══ İÇERİK ═══ */}
@@ -260,7 +240,7 @@ export default function ActivityChart() {
           {loading && (
             <View style={s.loadingWrap}>
               <ActivityIndicator size="small" color="#4B5320" />
-              <Text style={s.loadingText}>İSTİHBARAT ALINIYOR...</Text>
+              <Text style={s.loadingText}>VERİ YÜKLENİYOR...</Text>
             </View>
           )}
 
@@ -268,9 +248,9 @@ export default function ActivityChart() {
           {!loading && error && (
             <View style={s.stateWrap}>
               <Radio size={24} color="#8B0000" />
-              <Text style={s.errorText}>SİNYAL KESİLDİ</Text>
+              <Text style={s.errorText}>BAĞLANTI HATASI</Text>
               <Text style={s.stateSubText}>
-                İstihbarat verisi alınamadı
+                Yoğunluk verisi alınamadı
               </Text>
               <TouchableOpacity
                 onPress={fetchActivityData}
@@ -291,7 +271,7 @@ export default function ActivityChart() {
               </Text>
               <View style={s.noSignalBar}>
                 <View style={s.noSignalDot} />
-                <Text style={s.noSignalText}>SİNYAL YOK</Text>
+                <Text style={s.noSignalText}>KAYIT YOK</Text>
               </View>
             </View>
           )}
@@ -299,7 +279,7 @@ export default function ActivityChart() {
           {/* GRAFİK + ANALİZ — Sadece veri varsa */}
           {!loading && !error && hasData && (
             <>
-              {/* Grafik */}
+              {/* Grafik — saat etiketleri X ekseninde */}
               <View style={s.chartContainer}>
                 <View style={s.scanlineOverlay} pointerEvents="none">
                   {Array.from({ length: 12 }).map((_, i) => (
@@ -331,10 +311,10 @@ export default function ActivityChart() {
                     decimalPlaces: 0,
                     color: (opacity = 1) =>
                       `rgba(75, 83, 32, ${opacity})`,
-                    labelColor: () => "#666",
+                    labelColor: () => "#888",
                     propsForDots: {
-                      r: "3",
-                      strokeWidth: "1",
+                      r: "4",
+                      strokeWidth: "2",
                       stroke: "#4B5320",
                       fill: "#6B7530",
                     },
@@ -344,8 +324,8 @@ export default function ActivityChart() {
                       strokeWidth: 1,
                     },
                     propsForLabels: {
-                      fontSize: 9,
-                      fontFamily: "monospace",
+                      fontSize: 10,
+                      fontWeight: "600",
                     },
                     fillShadowGradientFrom: "#4B5320",
                     fillShadowGradientTo: "transparent",
@@ -358,18 +338,18 @@ export default function ActivityChart() {
                 />
               </View>
 
-              {/* İstihbarat Analizi */}
+              {/* Yoğunluk Analizi — Sabah / Öğlen / Akşam */}
               <View style={s.intelSection}>
                 <View style={s.intelDivider}>
                   <View style={s.intelDividerLine} />
-                  <Text style={s.intelDividerLabel}>SİNYAL ANALİZİ</Text>
+                  <Text style={s.intelDividerLabel}>DÖNEM ANALİZİ</Text>
                   <View style={s.intelDividerLine} />
                 </View>
 
                 {/* Zirve Saat */}
                 <View style={s.intelRow}>
                   <View style={s.intelIconWrap}>
-                    <Crosshair size={12} color="#B8860B" />
+                    <BarChart3 size={12} color="#B8860B" />
                   </View>
                   <View>
                     <Text style={s.intelTitle}>ZİRVE YOĞUNLUK</Text>
@@ -417,26 +397,22 @@ export default function ActivityChart() {
                   </View>
                 </View>
 
-                {/* Dönem Yoğunlukları */}
+                {/* Dönem Yoğunlukları — Sabah / Öğlen / Akşam */}
                 <View style={s.intensityRow}>
-                  {[
-                    { h: "06-08", label: "SABAH" },
-                    { h: "09-11", label: "ÖĞLEN" },
-                    { h: "12-14", label: "İKİNDİ" },
-                    { h: "15-17", label: "ÖĞLEDEN S." },
-                    { h: "18-20", label: "AKŞAM" },
-                    { h: "21-23", label: "GECE" },
-                  ].map((period) => {
-                    const [startH, endH] = period.h.split("-").map(Number);
+                  {TIME_PERIODS.map((period) => {
                     const total = hourlyData
-                      .filter((d) => d.hour >= startH && d.hour <= endH)
+                      .filter(
+                        (d) =>
+                          d.hour >= period.startHour &&
+                          d.hour <= period.endHour
+                      )
                       .reduce((sum, d) => sum + d.count, 0);
                     const intensity = getIntensityLabel(total);
 
                     return (
-                      <View key={period.h} style={s.intensityBlock}>
+                      <View key={period.key} style={s.intensityBlock}>
                         <Text style={s.intensityPeriod}>
-                          {period.label}
+                          {period.label.toUpperCase()}
                         </Text>
                         <View
                           style={[
@@ -577,13 +553,6 @@ const s = StyleSheet.create({
   rangeBtnTextActive: {
     color: "#4B5320",
   },
-  classifiedWatermark: {
-    color: "rgba(75,83,32,0.15)",
-    fontSize: 8,
-    letterSpacing: 4,
-    fontWeight: "900",
-    textTransform: "uppercase",
-  },
 
   // Grafik
   chartContainer: {
@@ -610,7 +579,7 @@ const s = StyleSheet.create({
     borderRadius: 2,
   },
 
-  // İstihbarat Analizi
+  // Yoğunluk Analizi
   intelSection: {
     marginTop: 12,
   },
@@ -666,7 +635,7 @@ const s = StyleSheet.create({
   // Yoğunluk
   intensityRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "space-around",
     marginTop: 8,
     marginBottom: 12,
     paddingHorizontal: 4,
@@ -676,19 +645,20 @@ const s = StyleSheet.create({
     flex: 1,
   },
   intensityPeriod: {
-    color: "#555",
-    fontSize: 8,
-    letterSpacing: 1,
-    marginBottom: 4,
+    color: "#888",
+    fontSize: 10,
+    letterSpacing: 2,
+    fontWeight: "600",
+    marginBottom: 6,
   },
   intensityDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginBottom: 3,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginBottom: 4,
   },
   intensityLabel: {
-    fontSize: 7,
+    fontSize: 8,
     letterSpacing: 1,
     fontWeight: "700",
   },

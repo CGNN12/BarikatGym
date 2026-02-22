@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { LayoutDashboard, ScanLine, UserCircle } from "lucide-react-native";
+import { Dumbbell, ScanLine, UserCircle } from "lucide-react-native";
 import { COLORS } from "@/constants/theme";
 import { View } from "react-native";
 
@@ -38,11 +38,17 @@ export default function TabsLayout() {
           title: "MERKEZ",
           tabBarIcon: ({ color, focused }) => (
             <View
-              className={`p-1.5 rounded-sm ${
-                focused ? "bg-tactical-green/20" : ""
-              }`}
+              style={
+                focused
+                  ? {
+                      padding: 6,
+                      borderRadius: 4,
+                      backgroundColor: "rgba(75,83,32,0.2)",
+                    }
+                  : { padding: 6 }
+              }
             >
-              <LayoutDashboard size={22} color={color} />
+              <Dumbbell size={22} color={color} />
             </View>
           ),
         }}
@@ -53,9 +59,15 @@ export default function TabsLayout() {
           title: "TARAMA",
           tabBarIcon: ({ color, focused }) => (
             <View
-              className={`p-1.5 rounded-sm ${
-                focused ? "bg-tactical-green/20" : ""
-              }`}
+              style={
+                focused
+                  ? {
+                      padding: 6,
+                      borderRadius: 4,
+                      backgroundColor: "rgba(75,83,32,0.2)",
+                    }
+                  : { padding: 6 }
+              }
             >
               <ScanLine size={22} color={color} />
             </View>
@@ -68,9 +80,15 @@ export default function TabsLayout() {
           title: "PROFİL",
           tabBarIcon: ({ color, focused }) => (
             <View
-              className={`p-1.5 rounded-sm ${
-                focused ? "bg-tactical-green/20" : ""
-              }`}
+              style={
+                focused
+                  ? {
+                      padding: 6,
+                      borderRadius: 4,
+                      backgroundColor: "rgba(75,83,32,0.2)",
+                    }
+                  : { padding: 6 }
+              }
             >
               <UserCircle size={22} color={color} />
             </View>

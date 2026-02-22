@@ -501,7 +501,7 @@ export default function ProfileScreen() {
         {/* ═══════════ SIGN OUT ═══════════ */}
         <View style={s.section}>
           <TacticalButton
-            title="SİSTEMDEN ÇIKIŞ"
+            title="ÇIKIŞ YAP"
             variant="danger"
             onPress={handleSignOut}
             loading={loggingOut}
@@ -511,7 +511,7 @@ export default function ProfileScreen() {
 
         <View style={s.footer}>
           <Shield size={10} color="#444" />
-          <Text style={s.footerText}>BARİKAT SAVUNMA • v1.0.0</Text>
+          <Text style={s.footerText}>BARİKAT SPOR • v1.0.0</Text>
         </View>
       </ScrollView>
 
@@ -527,7 +527,7 @@ export default function ProfileScreen() {
           <View style={s.modalHeader}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <FileText size={16} color="#4B5320" />
-              <Text style={s.modalTitle}>OPERASYON KAYITLARI</Text>
+              <Text style={s.modalTitle}>AKTİVİTE GEÇMİŞİ</Text>
             </View>
             <TouchableOpacity
               onPress={() => setHistoryModalVisible(false)}

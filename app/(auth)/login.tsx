@@ -114,7 +114,7 @@ export default function LoginScreen() {
           <View style={styles.container}>
             {/* Header Section */}
             <View style={styles.headerSection}>
-              <DeerLogo width={180} height={200} opacity={0.2} />
+              <DeerLogo width={180} height={200} opacity={0.3} />
               <View style={styles.titleWrap}>
                 <Text style={styles.appName}>{APP_NAME}</Text>
                 <View style={styles.subtitleRow}>
@@ -156,7 +156,7 @@ export default function LoginScreen() {
 
               <TacticalInput
                 label="E-Posta"
-                placeholder="operatör@barikat.com"
+                placeholder="sporcu@barikat.com"
                 value={email}
                 onChangeText={(text) => {
                   setEmail(text);
@@ -204,7 +204,7 @@ export default function LoginScreen() {
 
               <View style={styles.buttonWrap}>
                 <TacticalButton
-                  title={isSignUp ? "KAYIT OL" : "SİSTEME GİRİŞ"}
+                  title={isSignUp ? "KAYIT OL" : "GİRİŞ YAP"}
                   onPress={handleSubmit}
                   loading={loading}
                   icon={<Shield size={18} color="#E0E0E0" />}
@@ -231,11 +231,11 @@ export default function LoginScreen() {
             <View style={styles.footerSection}>
               <View style={styles.footerDivider}>
                 <View style={styles.secureLine} />
-                <Text style={styles.footerText}>BARİKAT SAVUNMA SİSTEMLERİ</Text>
+                <Text style={styles.footerText}>BARİKAT SPOR SİSTEMLERİ</Text>
                 <View style={styles.secureLine} />
               </View>
               <Text style={styles.versionText}>
-                v1.0.0 • GÜVENLİ BAĞLANTI
+                v1.0.0 • GÜVENLİ ERİŞİM
               </Text>
             </View>
           </View>
