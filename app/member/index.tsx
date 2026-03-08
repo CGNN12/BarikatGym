@@ -8,28 +8,22 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  LogIn,
-  LogOut,
   Clock,
   AlertTriangle,
   Activity,
-  ShieldOff,
   Calendar,
 } from "lucide-react-native";
-import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { MEMBERSHIP_WARNING_DAYS, APP_NAME } from "@/constants/theme";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import type { Profile, GymLog, MembershipStatus } from "@/lib/types";
 import OccupancyDisplay from "@/components/OccupancyDisplay";
-import TacticalButton from "@/components/TacticalButton";
 
 import ActivityChart from "@/components/ActivityChart";
 
 export default function DashboardScreen() {
   const { user } = useAuth();
-  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [activeCount, setActiveCount] = useState(0);
   const [currentSession, setCurrentSession] = useState<GymLog | null>(null);
@@ -227,10 +221,7 @@ export default function DashboardScreen() {
   const isExpiring = membershipStatus === "expiring_soon";
   const warningColor = isExpired ? "#8B0000" : "#B8860B";
 
-  // ═══════════ QR ACCESS GATE: Block non-active users ═══════════
-  const isAccountActive = profile?.status === "active";
-  const isFrozen = profile?.status === "frozen";
-  const isInactive = profile?.status === "inactive" || profile?.status === "pending";
+
 
   return (
     <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
@@ -364,58 +355,7 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* ═══════════ ACTION BUTTON / BLOCKED STATE ═══════════ */}
-        <View style={s.section}>
-          <View style={s.sectionDivider}>
-            <View style={s.dividerLine} />
-            <Text style={s.dividerLabel}>İşlemler</Text>
-            <View style={s.dividerLine} />
-          </View>
 
-          {isAccountActive ? (
-            <TacticalButton
-              title={
-                currentSession ? "ÇIKIŞ İÇİN QR TARA" : "GİRİŞ İÇİN QR TARA"
-              }
-              variant={currentSession ? "danger" : "primary"}
-              icon={
-                currentSession ? (
-                  <LogOut size={20} color="#E0E0E0" />
-                ) : (
-                  <LogIn size={20} color="#E0E0E0" />
-                )
-              }
-              onPress={() => router.push("/member/scan")}
-            />
-          ) : (
-            /* ═══ BLOCKED: Membership not active ═══ */
-            <View style={s.blockedCard}>
-              <View style={s.blockedIconWrap}>
-                <ShieldOff
-                  size={28}
-                  color={isFrozen ? "#5DADE2" : isInactive ? "#D4A017" : "#C0392B"}
-                />
-              </View>
-              <Text style={[
-                s.blockedTitle,
-                { color: isFrozen ? "#5DADE2" : isInactive ? "#D4A017" : "#C0392B" },
-              ]}>
-                {isFrozen
-                  ? "ÜYELİĞİNİZ DONDURULMUŞTUR"
-                  : isInactive
-                  ? "ÜYELİĞİNİZ ONAY BEKLİYOR"
-                  : "ÜYELİĞİNİZ AKTİF DEĞİLDİR"}
-              </Text>
-              <Text style={s.blockedBody}>
-                {isFrozen
-                  ? "Üyeliğiniz şu anda askıya alınmıştır. QR tarama işlemi yapılamaz. Lütfen yönetime başvurun."
-                  : isInactive
-                  ? "Kaydınız henüz onaylanmamıştır. QR tarama işlemi yapılamaz. Lütfen yönetici onayını bekleyin."
-                  : "Üyeliğiniz aktif değildir veya dondurulmuştur. Lütfen yönetime başvurun."}
-              </Text>
-            </View>
-          )}
-        </View>
 
         {/* ═══════════ TASK 2: QUICK STATS WITH DAYS REMAINING ═══════════ */}
         <View style={s.section}>
@@ -622,19 +562,7 @@ const s = StyleSheet.create({
   sessionDetail: { color: "#A0A0A0", fontSize: 13, marginLeft: 8 },
   sessionDuration: { color: "#E0E0E0", fontSize: 13, fontWeight: "600" },
 
-  sectionDivider: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  dividerLine: { flex: 1, height: 1, backgroundColor: "#333" },
-  dividerLabel: {
-    color: "#555",
-    fontSize: 10,
-    letterSpacing: 3,
-    marginHorizontal: 12,
-    textTransform: "uppercase",
-  },
+
 
   statsGrid: { flexDirection: "row", gap: 12 },
   statCard: {
@@ -667,41 +595,6 @@ const s = StyleSheet.create({
     marginRight: 8,
   },
 
-  // ═══════════ BLOCKED CARD ═══════════
-  blockedCard: {
-    backgroundColor: "rgba(26,26,26,0.65)",
-    borderWidth: 1,
-    borderColor: "rgba(139,0,0,0.3)",
-    borderLeftWidth: 3,
-    borderRadius: 3,
-    padding: 20,
-    alignItems: "center",
-  },
-  blockedIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "rgba(139,0,0,0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(139,0,0,0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
-  },
-  blockedTitle: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 3,
-    textTransform: "uppercase",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  blockedBody: {
-    color: "#A0A0A0",
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: "center",
-  },
 
   footer: {
     flexDirection: "row",

@@ -1,7 +1,9 @@
 import { Tabs } from "expo-router";
 import { Dumbbell, Users, User } from "lucide-react-native";
 import { COLORS } from "@/constants/theme";
-import { View, Platform, StyleSheet } from "react-native";
+import { Platform } from "react-native";
+
+const TAB_BAR_HEIGHT = Platform.OS === "ios" ? 92 : 72;
 
 export default function AdminTabsLayout() {
   return (
@@ -9,84 +11,60 @@ export default function AdminTabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: "#121212",
-          borderTopWidth: 0,
-          borderTopColor: "transparent",
-          height: Platform.OS === "ios" ? 90 : 70,
-          paddingBottom: Platform.OS === "ios" ? 25 : 12,
-          paddingTop: 8,
-          minHeight: 70,
+          backgroundColor: "#0E0E0E",
+          borderTopWidth: 1,
+          borderTopColor: "#1E1E1E",
+          height: TAB_BAR_HEIGHT,
+          paddingBottom: Platform.OS === "ios" ? 26 : 10,
+          paddingTop: 10,
           elevation: 0,
           shadowOpacity: 0,
         },
-        tabBarBackground: () => (
-          <View style={StyleSheet.absoluteFill}>
-            <View style={{ flex: 1, backgroundColor: "#121212" }} />
-          </View>
-        ),
         tabBarActiveTintColor: COLORS.green,
-        tabBarInactiveTintColor: "#808080",
+        tabBarInactiveTintColor: "#505050",
+        tabBarShowLabel: true,
         tabBarLabelStyle: {
           fontSize: 9,
-          fontFamily: "Inter_600SemiBold",
+          fontWeight: "700",
           letterSpacing: 2,
-          textTransform: "uppercase",
           marginTop: 2,
-          marginBottom: Platform.OS === "ios" ? 0 : 4,
         },
         sceneStyle: {
           backgroundColor: "transparent",
         },
       }}
     >
+      {/* ═══════════ SOL — MERKEZ ═══════════ */}
       <Tabs.Screen
         name="index"
         options={{
           title: "MERKEZ",
+          tabBarItemStyle: { paddingLeft: 16 },
           tabBarIcon: ({ color, focused }) => (
-            <View
-              style={
-                focused
-                  ? { padding: 6, borderRadius: 4, backgroundColor: "rgba(75,83,32,0.2)" }
-                  : { padding: 6 }
-              }
-            >
-              <Dumbbell size={22} color={color} />
-            </View>
+            <Dumbbell size={22} color={focused ? "#5C6B2A" : color} />
           ),
         }}
       />
+
+      {/* ═══════════ ORTA — ÜYELER ═══════════ */}
       <Tabs.Screen
         name="members"
         options={{
           title: "ÜYELER",
           tabBarIcon: ({ color, focused }) => (
-            <View
-              style={
-                focused
-                  ? { padding: 6, borderRadius: 4, backgroundColor: "rgba(75,83,32,0.2)" }
-                  : { padding: 6 }
-              }
-            >
-              <Users size={22} color={color} />
-            </View>
+            <Users size={22} color={focused ? "#5C6B2A" : color} />
           ),
         }}
       />
+
+      {/* ═══════════ SAĞ — PROFİL ═══════════ */}
       <Tabs.Screen
         name="profile"
         options={{
           title: "PROFİL",
+          tabBarItemStyle: { paddingRight: 16 },
           tabBarIcon: ({ color, focused }) => (
-            <View
-              style={
-                focused
-                  ? { padding: 6, borderRadius: 4, backgroundColor: "rgba(75,83,32,0.2)" }
-                  : { padding: 6 }
-              }
-            >
-              <User size={22} color={color} />
-            </View>
+            <User size={22} color={focused ? "#5C6B2A" : color} />
           ),
         }}
       />
