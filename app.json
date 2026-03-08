@@ -18,8 +18,9 @@
       "bundleIdentifier": "com.barikatgym.app",
       "infoPlist": {
         "UIBackgroundModes": ["location", "fetch"],
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "BarikatGym arka planda konumunuzu kontrol ederek 3 saatten uzun spor salonu oturumlarını otomatik olarak kapatır.",
-        "NSLocationWhenInUseUsageDescription": "BarikatGym spor salonuna yakın olduğunuzu doğrulamak için konumunuza erişir."
+        "NSLocationWhenInUseUsageDescription": "Spor salonuna girişinizi doğrulamak ve QR kod okutmadan içeride olup olmadığınızı tespit etmek için konumunuza ihtiyacımız var.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Arka planda (uygulama kapalıyken bile) spor salonu sınırları içinde ne kadar süre geçirdiğinizi hesaplamak için konum izni gereklidir.",
+        "NSLocationAlwaysUsageDescription": "Spor salonu sınırları içinde olduğunuzu tespit etmek için her zaman konum iznine ihtiyacımız var."
       }
     },
     "android": {
@@ -53,8 +54,9 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "BarikatGym arka planda konumunuzu kontrol ederek 3 saatten uzun spor salonu oturumlarını otomatik olarak kapatır.",
-          "locationWhenInUsePermission": "BarikatGym spor salonuna yakın olduğunuzu doğrulamak için konumunuza erişir.",
+          "locationWhenInUsePermission": "Spor salonuna girişinizi doğrulamak ve QR kod okutmadan içeride olup olmadığınızı tespit etmek için konumunuza ihtiyacımız var.",
+          "locationAlwaysAndWhenInUsePermission": "Arka planda (uygulama kapalıyken bile) spor salonu sınırları içinde ne kadar süre geçirdiğinizi hesaplamak için konum izni gereklidir.",
+          "locationAlwaysPermission": "Spor salonu sınırları içinde olduğunuzu tespit etmek için her zaman konum iznine ihtiyacımız var.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
