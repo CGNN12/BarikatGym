@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
-  Modal, Pressable, ScrollView, TextInput, Platform, ActivityIndicator, RefreshControl,
+  Modal, Pressable, ScrollView, TextInput, Platform, ActivityIndicator, RefreshControl, Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -43,6 +43,30 @@ function getEffectiveStatus(m: Profile): "active" | "inactive" | "frozen" | "pen
 
 const CB = "rgba(26,26,26,0.65)";
 const CBR = "#333";
+const AVATAR_LIST_SIZE = 40;
+
+function getInitials(name: string): string {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
+
+function MemberAvatar({ item, borderColor = "#333" }: { item: Profile; borderColor?: string }) {
+  if (item.avatar_url) {
+    return (
+      <Image
+        source={{ uri: item.avatar_url }}
+        style={[st.avatarImg, { borderColor }]}
+      />
+    );
+  }
+  return (
+    <View style={[st.avatar, { borderColor }]}>
+      <Text style={st.avatarInitials}>{getInitials(item.full_name)}</Text>
+    </View>
+  );
+}
 
 export default function AdminMembersScreen() {
   // ═══════════ DATA STATE ═══════════
@@ -574,7 +598,7 @@ export default function AdminMembersScreen() {
     const barColor = getBarColor(dl);
     return (
       <TouchableOpacity style={st.memberCard} activeOpacity={0.7} onPress={() => openDossier(item)}>
-        <View style={st.avatar}><User size={16} color="#555" /></View>
+        <MemberAvatar item={item} />
         <View style={st.cardInfo}>
           <Text style={st.memberName} numberOfLines={1}>{item.full_name}</Text>
         </View>
@@ -592,7 +616,7 @@ export default function AdminMembersScreen() {
     return (
       <TouchableOpacity style={st.memberCard} activeOpacity={0.7} onPress={() => openDossier(item)}>
         <View style={[st.leftStripe, { backgroundColor: isPending ? '#FFFFFF' : '#D4A017' }]} />
-        <View style={st.avatar}><User size={16} color="#D4A017" /></View>
+        <MemberAvatar item={item} borderColor="rgba(212,160,23,0.4)" />
         <View style={st.cardInfo}><Text style={st.memberName}>{item.full_name}</Text><Text style={st.memberMeta}>Kayıt: {item.created_at ? fmtDate(new Date(item.created_at)) : '—'}</Text></View>
         <View style={[st.statusTag, { borderColor: 'rgba(212,160,23,0.3)', backgroundColor: 'rgba(212,160,23,0.08)' }]}><Text style={[st.statusTagText, { color: '#D4A017' }]}>{isPending ? 'BEKLEMEDE' : 'YENİ'}</Text></View>
       </TouchableOpacity>
@@ -602,7 +626,7 @@ export default function AdminMembersScreen() {
   const renderFrozenItem = useCallback(({ item }: { item: Profile }) => (
     <TouchableOpacity style={st.memberCard} activeOpacity={0.7} onPress={() => openDossier(item)}>
       <View style={[st.leftStripe, { backgroundColor: '#5DADE2' }]} />
-      <View style={st.avatar}><User size={16} color="#808080" /></View>
+      <MemberAvatar item={item} borderColor="rgba(93,173,226,0.4)" />
       <View style={st.cardInfo}><Text style={st.memberName}>{item.full_name}</Text><Text style={st.memberMeta}>Dondurma hakkı: {item.freeze_quota ?? 0}</Text></View>
       <View style={[st.statusTag, { borderColor: 'rgba(128,128,128,0.3)', backgroundColor: 'rgba(128,128,128,0.08)' }]}><Text style={[st.statusTagText, { color: '#808080' }]}>ASKIDA</Text></View>
     </TouchableOpacity>
@@ -612,7 +636,7 @@ export default function AdminMembersScreen() {
     const since = item.membership_end ? Math.abs(daysLeft(item.membership_end)) : 0;
     return (
       <TouchableOpacity style={st.memberCard} activeOpacity={0.7} onPress={() => openDossier(item)}>
-        <View style={[st.avatar, { borderColor: 'rgba(139,0,0,0.3)' }]}><UserX size={16} color="#8B0000" /></View>
+        <MemberAvatar item={item} borderColor="rgba(139,0,0,0.4)" />
         <View style={st.cardInfo}>
           <Text style={[st.memberName, { color: '#999' }]}>{item.full_name}</Text>
           <Text style={st.memberMeta}>{since} gün önce doldu</Text>
@@ -924,8 +948,10 @@ const st = StyleSheet.create({
   inactiveContent: { paddingBottom: 8 },
   memberCard: { flexDirection: "row", alignItems: "center", backgroundColor: CB, borderWidth: 1, borderColor: CBR, borderRadius: 8, paddingVertical: 14, paddingHorizontal: 14, marginBottom: 6, overflow: "hidden" },
   leftStripe: { position: "absolute", left: 0, top: 0, bottom: 0, width: 3, borderTopLeftRadius: 8, borderBottomLeftRadius: 8 },
-  avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(0,0,0,0.3)", borderWidth: 1, borderColor: "#333", alignItems: "center", justifyContent: "center" },
-  cardInfo: { flex: 1, marginLeft: 10, gap: 4 },
+  avatar: { width: AVATAR_LIST_SIZE, height: AVATAR_LIST_SIZE, borderRadius: AVATAR_LIST_SIZE / 2, backgroundColor: "rgba(75,83,32,0.12)", borderWidth: 1.5, borderColor: "#333", alignItems: "center", justifyContent: "center" },
+  avatarImg: { width: AVATAR_LIST_SIZE, height: AVATAR_LIST_SIZE, borderRadius: AVATAR_LIST_SIZE / 2, borderWidth: 1.5, borderColor: "#333" },
+  avatarInitials: { color: "#5C6B2A", fontSize: 14, fontWeight: "900", letterSpacing: 1 },
+  cardInfo: { flex: 1, marginLeft: 12, gap: 4 },
   memberName: { color: "#E0E0E0", fontSize: 14, fontWeight: "700", letterSpacing: 0.3 },
   memberMeta: { color: "#555", fontSize: 10, letterSpacing: 0.5 },
   statusBarWrap: { paddingHorizontal: 8, justifyContent: "center" },
