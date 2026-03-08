@@ -20,6 +20,22 @@ export const GYM_CONFIG = {
 };
 
 // ═══════════════════════════════════════════════════════════
+// SNEAK-IN DETECTION CONFIGURATION
+// Kaçak giriş tespiti için sabitler
+// ═══════════════════════════════════════════════════════════
+
+export const SNEAK_DETECTION_CONFIG = {
+  /** Geofence radius in meters — tight to filter GPS drift & neighbors */
+  radiusMeters: 15,
+  /** Minimum dwell time in milliseconds (10 minutes) */
+  dwellTimeMs: 10 * 60 * 1000,
+  /** Background location update interval in milliseconds */
+  locationUpdateIntervalMs: 30 * 1000, // 30 seconds
+  /** Distance interval for background updates in meters */
+  distanceIntervalMeters: 5,
+};
+
+// ═══════════════════════════════════════════════════════════
 // HAVERSINE FORMULA — Distance between two GPS coordinates
 // Returns distance in meters
 // ═══════════════════════════════════════════════════════════

@@ -1,9 +1,29 @@
+import { useEffect } from "react";
 import { Tabs } from "expo-router";
 import { Dumbbell, ScanLine, UserCircle } from "lucide-react-native";
 import { COLORS } from "@/constants/theme";
 import { View, Platform, StyleSheet } from "react-native";
+import { useAuth } from "@/hooks/useAuth";
+import { startSneakDetection } from "@/utils/sneakDetection";
 
 export default function TabsLayout() {
+  const { user } = useAuth();
+
+  // ═══════════ SNEAK DETECTION — Arka Plan Konum Takibi ═══════════
+  useEffect(() => {
+    if (!user) return;
+
+    // Arka plan konum takibini başlat (try-catch: Expo Go'da çökmeyi engeller)
+    const initSneakDetection = async () => {
+      try {
+        await startSneakDetection();
+      } catch (err) {
+        console.warn("⚠️ [KAÇAK GİRİŞ] Başlatılamadı (Expo Go sınırlaması olabilir):", err);
+      }
+    };
+
+    initSneakDetection();
+  }, [user]);
   return (
     <Tabs
       screenOptions={{

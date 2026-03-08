@@ -43,3 +43,12 @@ export interface DashboardStats {
   membershipDaysLeft: number;
   membershipStatus: MembershipStatus;
 }
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  message: string;
+  is_read: boolean;
+  type: "alert" | "sneak_alert" | string;
+  created_at: string;
+}
