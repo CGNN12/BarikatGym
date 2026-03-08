@@ -22,10 +22,10 @@ import {
   X,
   FileText,
   Edit3,
-  Lock,
   ShieldCheck,
   Mail,
   ChevronDown,
+  AlertCircle,
 } from "lucide-react-native";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
@@ -50,7 +50,7 @@ export default function ProfileScreen() {
   // ═══════════ EDIT PROFILE STATE ═══════════
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editName, setEditName] = useState("");
-  const [editPassword, setEditPassword] = useState("");
+  const [editEmail, setEditEmail] = useState("");
   const [editLoading, setEditLoading] = useState(false);
 
   // ═══════════ HISTORY FILTER STATE ═══════════
@@ -120,9 +120,18 @@ export default function ProfileScreen() {
     await fetchAllLogs();
   };
 
+  // E-posta format kontrolü
+  const isValidEmail = (email: string) => {
+    if (email.trim().length === 0) return true; // Boş = değiştirmeyecek
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  };
+
+  const emailError = editEmail.trim().length > 0 && !isValidEmail(editEmail);
+  const canSave = editName.trim().length > 0 && !emailError;
+
   const openEditModal = () => {
     setEditName(profile?.full_name || "");
-    setEditPassword("");
+    setEditEmail("");
     setIsEditModalVisible(true);
   };
 
@@ -135,25 +144,37 @@ export default function ProfileScreen() {
         return;
       }
 
-      const updates: any = { data: { full_name: editName.trim() } };
-      if (editPassword.trim().length >= 6) {
-        updates.password = editPassword;
-      } else if (editPassword.trim().length > 0) {
-         showAlert("HATA", "Şifre en az 6 karakter olmalıdır.");
-         setEditLoading(false);
-         return;
+      if (editEmail.trim().length > 0 && !isValidEmail(editEmail)) {
+        showAlert("HATA", "Geçersiz e-posta formatı.");
+        setEditLoading(false);
+        return;
       }
 
-      const { data, error } = await supabase.auth.updateUser(updates);
+      // 1) İsim güncelleme
+      const nameUpdate: any = { data: { full_name: editName.trim() } };
+      const { data, error } = await supabase.auth.updateUser(nameUpdate);
       if (error) throw error;
-      
+
       if (data.user) {
-         await supabase.from("profiles").update({ full_name: editName.trim() }).eq("id", data.user.id);
-         setProfile(prev => prev ? { ...prev, full_name: editName.trim() } : prev);
+        await supabase.from("profiles").update({ full_name: editName.trim() }).eq("id", data.user.id);
+        setProfile(prev => prev ? { ...prev, full_name: editName.trim() } : prev);
       }
-      
-      setIsEditModalVisible(false);
-      showAlert("BAŞARILI", "Profil bilgileriniz güncellendi.", [{ text: "TAMAM" }]);
+
+      // 2) E-posta güncelleme (kullanıcı yeni mail yazdıysa)
+      if (editEmail.trim().length > 0 && editEmail.trim() !== user?.email) {
+        const { error: emailErr } = await supabase.auth.updateUser({ email: editEmail.trim() });
+        if (emailErr) throw emailErr;
+
+        setIsEditModalVisible(false);
+        showAlert(
+          "GÜVENLİK ONAYI GEREKİYOR",
+          "Güvenlik onayı gereklidir!\n\nHem mevcut (eski) e-posta adresinize hem de yeni adresinize onay linkleri gönderildi.\n\nLütfen gelen kutularınızı kontrol edin.",
+          [{ text: "ANLAŞILDI" }]
+        );
+      } else {
+        setIsEditModalVisible(false);
+        showAlert("BAŞARILI", "Profil bilgileriniz güncellendi.", [{ text: "TAMAM" }]);
+      }
     } catch (e: any) {
       showAlert("HATA", e.message || "Güncelleme başarısız.");
     } finally {
@@ -555,19 +576,27 @@ export default function ProfileScreen() {
                 icon={<User size={18} color="#555" />}
               />
               <TacticalInput
-                label="Yeni Şifre (İsteğe Bağlı)"
+                label="Yeni E-Posta (İsteğe Bağlı)"
                 placeholder="Değiştirmek istemiyorsanız boş bırakın"
-                value={editPassword}
-                onChangeText={setEditPassword}
-                secureTextEntry
-                icon={<Lock size={18} color="#555" />}
+                value={editEmail}
+                onChangeText={setEditEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                icon={<Mail size={18} color="#555" />}
               />
+              {emailError && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, paddingHorizontal: 4 }}>
+                  <AlertCircle size={12} color="#E74C3C" />
+                  <Text style={{ color: "#E74C3C", fontSize: 10, fontWeight: "600", letterSpacing: 1 }}>Geçersiz e-posta formatı</Text>
+                </View>
+              )}
             </View>
 
             <TacticalButton
                title="BİLGİLERİ KAYDET"
                onPress={handleUpdateProfile}
                loading={editLoading}
+               disabled={!canSave}
                icon={<ShieldCheck size={18} color="#E0E0E0" />}
             />
           </TouchableOpacity>
