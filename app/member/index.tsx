@@ -243,8 +243,6 @@ export default function DashboardScreen() {
           <View>
             <Text style={s.appName}>{APP_NAME}</Text>
             <View style={s.statusRow}>
-              <Activity size={10} color="#4B5320" />
-              <Text style={s.statusText}>SİSTEM AKTİF</Text>
             </View>
           </View>
         </View>
@@ -529,7 +527,7 @@ const s = StyleSheet.create({
   warningBody: { color: "#A0A0A0", fontSize: 12, marginTop: 4 },
 
   sessionCard: {
-    backgroundColor: "rgba(26,26,26,0.65)",
+    backgroundColor: "rgba(26,26,26,0.35)",
     borderWidth: 1,
     borderColor: "rgba(75,83,32,0.3)",
     borderRadius: 3,
@@ -567,7 +565,7 @@ const s = StyleSheet.create({
   statsGrid: { flexDirection: "row", gap: 12 },
   statCard: {
     flex: 1,
-    backgroundColor: "rgba(26,26,26,0.65)",
+    backgroundColor: "rgba(26,26,26,0.35)",
     borderWidth: 1,
     borderColor: "#333",
     borderRadius: 3,

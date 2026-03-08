@@ -434,7 +434,7 @@ const st = StyleSheet.create({
   heroLabel: { color: "#808080", fontSize: 11, fontWeight: "700", letterSpacing: 5, marginTop: 14, marginBottom: 4 },
   heroCount: { color: "#E0E0E0", fontSize: 72, fontWeight: "900", letterSpacing: 4, lineHeight: 80 },
   heroUnit: { color: "#4B5320", fontSize: 10, fontWeight: "700", letterSpacing: 5, marginBottom: 16, marginTop: 2 },
-  manualEntryBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#4B5320", paddingHorizontal: 16, paddingVertical: 8, borderRadius: 4 },
+  manualEntryBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(75,83,32,0.25)", borderWidth: 1, borderColor: "rgba(75,83,32,0.6)", paddingHorizontal: 16, paddingVertical: 8, borderRadius: 4 },
   manualEntryText: { color: "#E0E0E0", fontSize: 10, fontWeight: "700", letterSpacing: 2 },
 
   listHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },

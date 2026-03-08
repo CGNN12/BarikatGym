@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, Image
 } from "react-native";
@@ -36,6 +36,13 @@ export default function AdminProfileScreen() {
   const [totalMembers, setTotalMembers] = useState(0);
   const [activeToday, setActiveToday] = useState(0);
   const [generatingCode, setGeneratingCode] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+
+  // ═══════════ COUNTDOWN STATE ═══════════
+  const [countdownVisible, setCountdownVisible] = useState(false);
+  const [countdownValue, setCountdownValue] = useState(3);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownValueRef = useRef(3);
 
   // Edit Profile State
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
@@ -275,17 +282,46 @@ export default function AdminProfileScreen() {
         return;
       }
 
-      showAlert(
-        "KOD ÜRETİLDİ",
-        `Yeni antrenör davet kodu:\n\n${code}\n\nBu kodu yeni antrenöre verin. Kod tek kullanımlıktır.`,
-        [{ text: "TAMAM" }]
-      );
+      setGeneratedCode(code);
     } catch (e: any) {
       showAlert("HATA", e?.message || "Beklenmeyen hata oluştu.");
     } finally {
       setGeneratingCode(false);
     }
   };
+
+  // ═══════════ COUNTDOWN LOGIC ═══════════
+  const startCountdown = () => {
+    setCountdownValue(3);
+    countdownValueRef.current = 3;
+    setCountdownVisible(true);
+
+    countdownRef.current = setInterval(() => {
+      countdownValueRef.current -= 1;
+      if (countdownValueRef.current <= 0) {
+        // Time's up — generate the code
+        if (countdownRef.current) clearInterval(countdownRef.current);
+        countdownRef.current = null;
+        setCountdownVisible(false);
+        generateInviteCode();
+      } else {
+        setCountdownValue(countdownValueRef.current);
+      }
+    }, 1000);
+  };
+
+  const cancelCountdown = () => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    countdownRef.current = null;
+    setCountdownVisible(false);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, []);
 
   // ═══════════ AVATAR DISPLAY HELPERS ═══════════
 
@@ -388,7 +424,7 @@ export default function AdminProfileScreen() {
         {/* INVITE CODE */}
         <View style={st.inviteSection}>
           <View style={st.sepRow}><View style={st.sepLine} /><Text style={st.sepLabel}>ANTRENÖR DAVETİ</Text><View style={st.sepLine} /></View>
-          <TouchableOpacity onPress={generateInviteCode} style={st.inviteBtn} activeOpacity={0.7} disabled={generatingCode}>
+          <TouchableOpacity onPress={startCountdown} style={st.inviteBtn} activeOpacity={0.7} disabled={generatingCode}>
             {generatingCode ? <ActivityIndicator color="#E0E0E0" size="small" /> : <Ticket size={18} color="#4B5320" />}
             <Text style={st.inviteBtnText}>{generatingCode ? "ÜRETİLİYOR..." : "YENİ DAVET KODU ÜRET"}</Text>
           </TouchableOpacity>
@@ -498,6 +534,58 @@ export default function AdminProfileScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* ═══════════ GENERATED CODE MODAL ═══════════ */}
+      <Modal visible={!!generatedCode} transparent animationType="fade" onRequestClose={() => setGeneratedCode(null)}>
+        <Pressable style={st.codeModalOverlay} onPress={() => setGeneratedCode(null)}>
+          <Pressable style={st.codeModalBox} onPress={() => {}}>
+            <View style={st.codeModalAccent} />
+            <Text style={st.codeModalTitle}>KOD ÜRETİLDİ</Text>
+            <View style={st.codeModalSep}>
+              <View style={st.codeModalSepLine} />
+              <Ticket size={10} color="#4B5320" />
+              <View style={st.codeModalSepLine} />
+            </View>
+            <View style={st.codeModalCodeBox}>
+              <Text style={st.codeModalCode}>{generatedCode}</Text>
+            </View>
+            <Text style={st.codeModalHint}>Bu kodu yeni antrenöre verin.{"\n"}Kod tek kullanımlıktır.</Text>
+            <TouchableOpacity onPress={() => setGeneratedCode(null)} style={st.codeModalBtn} activeOpacity={0.7}>
+              <Text style={st.codeModalBtnText}>TAMAM</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ═══════════ COUNTDOWN MODAL ═══════════ */}
+      <Modal visible={countdownVisible} transparent animationType="fade" onRequestClose={cancelCountdown}>
+        <View style={st.countdownOverlay}>
+          <View style={st.countdownBox}>
+            {/* Title */}
+            <Text style={st.countdownTitle}>KOD ÜRETİLİYOR</Text>
+            <View style={st.countdownSep}>
+              <View style={st.countdownSepLine} />
+              <Ticket size={12} color="#4B5320" />
+              <View style={st.countdownSepLine} />
+            </View>
+
+            {/* Number */}
+            <View style={st.countdownCircle}>
+              <View style={st.countdownInnerRing}>
+                <Text style={st.countdownNumber}>{countdownValue}</Text>
+              </View>
+            </View>
+
+            <Text style={st.countdownHint}>İstemiyorsanız iptal edebilirsiniz</Text>
+
+            {/* Cancel */}
+            <TouchableOpacity onPress={cancelCountdown} style={st.countdownCancelBtn} activeOpacity={0.7}>
+              <X size={16} color="#C0392B" />
+              <Text style={st.countdownCancelText}>İPTAL</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -549,6 +637,32 @@ const st = StyleSheet.create({
   inviteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12, paddingVertical: 16, borderRadius: 6, backgroundColor: "rgba(75,83,32,0.15)", borderWidth: 1.5, borderColor: "rgba(75,83,32,0.5)" },
   inviteBtnText: { color: "#E0E0E0", fontSize: 12, fontWeight: "800", letterSpacing: 3 },
   inviteHint: { color: "#444", fontSize: 10, textAlign: "center", marginTop: 10, letterSpacing: 0.5 },
+
+  // ═══════════ GENERATED CODE MODAL ═══════════
+  codeModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", alignItems: "center", paddingHorizontal: 28 },
+  codeModalBox: { width: "100%", maxWidth: 320, backgroundColor: "#1A1A1A", borderRadius: 10, borderWidth: 1, borderColor: "rgba(75,83,32,0.6)", overflow: "hidden", alignItems: "center", paddingBottom: 22 },
+  codeModalAccent: { height: 3, width: "100%", backgroundColor: "rgba(75,83,32,0.8)", marginBottom: 18 },
+  codeModalTitle: { color: "#6B8E23", fontSize: 11, fontWeight: "800", letterSpacing: 4, marginBottom: 10 },
+  codeModalSep: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, width: "100%", marginBottom: 18 },
+  codeModalSepLine: { flex: 1, height: 1, backgroundColor: "#333" },
+  codeModalCodeBox: { backgroundColor: "rgba(75,83,32,0.1)", borderWidth: 1.5, borderColor: "rgba(75,83,32,0.4)", borderRadius: 6, paddingVertical: 14, paddingHorizontal: 24, marginBottom: 14, marginHorizontal: 20 },
+  codeModalCode: { color: "#E0E0E0", fontSize: 24, fontWeight: "900", letterSpacing: 4, textAlign: "center" },
+  codeModalHint: { color: "#666", fontSize: 11, lineHeight: 18, textAlign: "center", paddingHorizontal: 20, marginBottom: 18, letterSpacing: 0.3 },
+  codeModalBtn: { backgroundColor: "rgba(75,83,32,0.55)", borderWidth: 1, borderColor: "#5C6B2A", borderRadius: 4, paddingVertical: 12, paddingHorizontal: 40 },
+  codeModalBtnText: { color: "#E0E0E0", fontSize: 11, fontWeight: "700", letterSpacing: 3 },
+
+  // ═══════════ COUNTDOWN MODAL ═══════════
+  countdownOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", alignItems: "center", paddingHorizontal: 50 },
+  countdownBox: { width: "100%", maxWidth: 240, backgroundColor: "#1A1A1A", borderRadius: 10, borderWidth: 1, borderColor: "#4B5320", paddingVertical: 22, paddingHorizontal: 20, alignItems: "center" },
+  countdownTitle: { color: "#888", fontSize: 9, fontWeight: "700", letterSpacing: 4, marginBottom: 8 },
+  countdownSep: { flexDirection: "row", alignItems: "center", gap: 8, width: "100%", marginBottom: 16 },
+  countdownSepLine: { flex: 1, height: 1, backgroundColor: "#333" },
+  countdownCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: "rgba(75,83,32,0.1)", borderWidth: 1.5, borderColor: "rgba(75,83,32,0.4)", alignItems: "center", justifyContent: "center", marginBottom: 14 },
+  countdownInnerRing: { width: 56, height: 56, borderRadius: 28, borderWidth: 1, borderColor: "rgba(75,83,32,0.25)", alignItems: "center", justifyContent: "center" },
+  countdownNumber: { color: "#5C6B2A", fontSize: 32, fontWeight: "900" },
+  countdownHint: { color: "#444", fontSize: 9, letterSpacing: 1, marginBottom: 14, textAlign: "center" },
+  countdownCancelBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 5, backgroundColor: "rgba(139,0,0,0.1)", borderWidth: 1, borderColor: "rgba(139,0,0,0.3)", width: "100%" },
+  countdownCancelText: { color: "#C0392B", fontSize: 10, fontWeight: "700", letterSpacing: 3 },
 
   footer: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 16, marginTop: "auto" },
   fLine: { flex: 1, height: 1, backgroundColor: "#1E1E1E" },

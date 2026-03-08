@@ -51,7 +51,7 @@ export default function ForgotPasswordScreen() {
 
             <View style={styles.content}>
               <View style={styles.logoWrap}>
-                <DeerLogo width={100} height={110} opacity={0.3} />
+                <DeerLogo width={180} height={200} opacity={0.3} />
               </View>
 
               <Text style={styles.title}>ŞİFRE SIFIRLAMA</Text>
@@ -92,10 +92,10 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1 },
   container: { flex: 1, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 },
-  header: { marginBottom: 32 },
+  header: { marginBottom: 12 },
   backButton: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, width: 140 },
   backButtonText: { color: "#E0E0E0", fontSize: 12, fontWeight: "700", letterSpacing: 2 },
-  content: { flex: 1, justifyContent: "center", marginBottom: 40 },
+  content: { flex: 1, justifyContent: "center" },
   logoWrap: { alignItems: "center", marginBottom: 24 },
   title: { color: "#E0E0E0", fontSize: 24, fontWeight: "900", letterSpacing: 4, textAlign: "center", marginBottom: 16 },
   description: { color: "#888", fontSize: 13, lineHeight: 20, textAlign: "center", marginBottom: 32, paddingHorizontal: 16 },

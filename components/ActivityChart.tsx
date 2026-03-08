@@ -464,7 +464,7 @@ export default function ActivityChart() {
 
 const s = StyleSheet.create({
   card: {
-    backgroundColor: "rgba(26,26,26,0.65)",
+    backgroundColor: "rgba(26,26,26,0.35)",
     borderWidth: 1,
     borderColor: "rgba(75,83,32,0.3)",
     borderRadius: 3,
