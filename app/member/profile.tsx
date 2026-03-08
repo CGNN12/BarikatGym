@@ -32,6 +32,7 @@ import {
   Camera,
 } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
+import { decode } from "base64-arraybuffer";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import type { Profile, GymLog } from "@/lib/types";
@@ -69,6 +70,7 @@ export default function ProfileScreen() {
 
   // ═══════════ AVATAR STATE ═══════════
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
 
   // ═══════════ HISTORY FILTER STATE ═══════════
@@ -152,6 +154,7 @@ export default function ProfileScreen() {
     setEditName(profile?.full_name || "");
     setEditEmail("");
     setAvatarPreview(null);
+    setAvatarBase64(null);
     setIsEditModalVisible(true);
   };
 
@@ -173,35 +176,28 @@ export default function ProfileScreen() {
       mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.7,
+      quality: 0.4,
+      base64: true,
     });
 
     if (!result.canceled && result.assets.length > 0) {
       setAvatarPreview(result.assets[0].uri);
+      setAvatarBase64(result.assets[0].base64 ?? null);
     }
   };
 
   // ═══════════ AVATAR: SUPABASE STORAGE UPLOAD ═══════════
 
   const uploadAvatar = async (): Promise<string | null> => {
-    if (!avatarPreview || !user) return null;
+    if (!avatarBase64 || !user) return null;
 
+    setAvatarUploading(true);
     try {
-      setAvatarUploading(true);
-
       const fileName = `${user.id}_${Date.now()}.jpg`;
-      const filePath = fileName;
-
-      // Fetch the image as blob
-      const response = await fetch(avatarPreview);
-      const blob = await response.blob();
-
-      // Convert blob to ArrayBuffer for Supabase upload
-      const arrayBuffer = await new Response(blob).arrayBuffer();
 
       const { error: uploadError } = await supabase.storage
         .from("avatars")
-        .upload(filePath, arrayBuffer, {
+        .upload(fileName, decode(avatarBase64), {
           contentType: "image/jpeg",
           cacheControl: "3600",
           upsert: true,
@@ -215,7 +211,7 @@ export default function ProfileScreen() {
       // Get public URL
       const { data: publicUrlData } = supabase.storage
         .from("avatars")
-        .getPublicUrl(filePath);
+        .getPublicUrl(fileName);
 
       return publicUrlData.publicUrl;
     } catch (err) {
