@@ -60,8 +60,6 @@ export default function OccupancyDisplay({ count }: OccupancyDisplayProps) {
           styles.card,
           {
             borderColor: borderColor,
-            shadowColor: statusColor,
-            shadowOpacity: shadowOpacity,
           },
         ]}
       >
@@ -106,15 +104,12 @@ const styles = StyleSheet.create({
   },
   card: {
     width: "100%",
-    backgroundColor: "#1A1A1A",
+    backgroundColor: "rgba(26,26,26,0.65)",
     borderWidth: 1,
     borderRadius: 3,
     paddingVertical: 32,
     paddingHorizontal: 24,
     alignItems: "center",
-    shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 12,
-    elevation: 10,
   },
   headerRow: {
     flexDirection: "row",

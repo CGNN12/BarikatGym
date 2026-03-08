@@ -4,6 +4,12 @@ export interface Profile {
   membership_start: string;
   membership_end: string;
   avatar_url: string | null;
+  role?: "admin" | "member";
+  status?: "active" | "inactive" | "frozen" | "pending" | "expired";
+  freeze_quota?: number;
+  freeze_start_date?: string | null;
+  planned_freeze_days?: number | null;
+  is_inside?: boolean;
   created_at?: string;
   updated_at?: string;
 }

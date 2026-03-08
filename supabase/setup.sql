@@ -27,12 +27,59 @@ create table if not exists public.profiles (
 -- Enable Row Level Security
 alter table public.profiles enable row level security;
 
--- Profiles policies
+-- ─────────────────────────────────────────────────────────────
+-- FREEZE TRACKING COLUMNS (run once to add)
+-- ─────────────────────────────────────────────────────────────
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS freeze_start_date timestamptz DEFAULT NULL;
+
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS planned_freeze_days integer DEFAULT NULL;
+
+-- ─────────────────────────────────────────────────────────────
+-- PROFILES: User policies (own data only)
+-- ─────────────────────────────────────────────────────────────
 create policy "Users can view own profile" on public.profiles for
 select using (auth.uid () = id);
 
 create policy "Users can update own profile" on public.profiles for
 update using (auth.uid () = id);
+
+-- ─────────────────────────────────────────────────────────────
+-- PROFILES: Admin policies (all member data)
+-- ⚠️ CRITICAL: Without these, admin updates silently fail!
+-- ─────────────────────────────────────────────────────────────
+create policy "Admins can view all profiles" on public.profiles for
+select using (
+        exists (
+            select 1
+            from public.profiles
+            where
+                id = auth.uid ()
+                and role = 'admin'
+        )
+    );
+
+create policy "Admins can update all profiles" on public.profiles for
+update using (
+    exists (
+        select 1
+        from public.profiles
+        where
+            id = auth.uid ()
+            and role = 'admin'
+    )
+);
+
+create policy "Admins can delete profiles" on public.profiles for delete using (
+    exists (
+        select 1
+        from public.profiles
+        where
+            id = auth.uid ()
+            and role = 'admin'
+    )
+);
 
 -- Auto-create profile on user signup
 create or replace function public.handle_new_user()
@@ -90,6 +137,42 @@ create policy "Authenticated users can count active entries" on public.gym_logs 
 select using (
         auth.role () = 'authenticated'
     );
+
+-- ─────────────────────────────────────────────────────────────
+-- GYM_LOGS: Admin policies (manage all entries)
+-- ─────────────────────────────────────────────────────────────
+create policy "Admins can insert gym logs for any user" on public.gym_logs for insert
+with
+    check (
+        exists (
+            select 1
+            from public.profiles
+            where
+                id = auth.uid ()
+                and role = 'admin'
+        )
+    );
+
+create policy "Admins can update any gym log" on public.gym_logs for
+update using (
+    exists (
+        select 1
+        from public.profiles
+        where
+            id = auth.uid ()
+            and role = 'admin'
+    )
+);
+
+create policy "Admins can delete any gym log" on public.gym_logs for delete using (
+    exists (
+        select 1
+        from public.profiles
+        where
+            id = auth.uid ()
+            and role = 'admin'
+    )
+);
 
 -- ─────────────────────────────────────────────────────────────
 -- 3. AUTO CHECK-OUT FUNCTION (3 hours)

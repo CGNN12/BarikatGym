@@ -1,24 +1,36 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   TouchableOpacity,
   StyleSheet,
+  Modal,
+  Pressable,
+  Animated,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Mail, Lock, Shield, User } from "lucide-react-native";
+import { Mail, Lock, User, Shield, ShieldAlert, X, KeyRound } from "lucide-react-native";
 import { APP_NAME, APP_SUBTITLE } from "@/constants/theme";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "expo-router";
 import TacticalInput from "@/components/TacticalInput";
 import TacticalButton from "@/components/TacticalButton";
 import DeerLogo from "@/components/DeerLogo";
+import { useAlert } from "@/components/CustomAlert";
+
+// ═══════════ CONSTANTS ═══════════
+const ADMIN_TAP_COUNT = 3;
+const ADMIN_TAP_WINDOW_MS = 1500;
 
 export default function LoginScreen() {
   const { signIn, signUp, loading } = useAuth();
+  const router = useRouter();
+  const { showAlert } = useAlert();
   const [isSignUp, setIsSignUp] = useState(false);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -31,6 +43,56 @@ export default function LoginScreen() {
     confirmPassword?: string;
   }>({});
 
+  // ═══════════ INVITE CODE (hidden field) ═══════════
+  const [showInviteField, setShowInviteField] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const inviteTapCount = useRef(0);
+  const inviteLastTap = useRef(0);
+
+
+  // 3-Tap tracking
+  const tapCountRef = useRef(0);
+  const lastTapTimeRef = useRef(0);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // ═══════════ 3-TAP PROTOCOL ═══════════
+  const handleLogoTap = useCallback(() => {
+    const now = Date.now();
+    const timeSinceLastTap = now - lastTapTimeRef.current;
+
+    if (timeSinceLastTap > ADMIN_TAP_WINDOW_MS) {
+      // Reset — too much time passed
+      tapCountRef.current = 1;
+    } else {
+      tapCountRef.current += 1;
+    }
+
+    lastTapTimeRef.current = now;
+
+    // Subtle pulse feedback on each tap
+    Animated.sequence([
+      Animated.timing(pulseAnim, {
+        toValue: 0.85,
+        duration: 80,
+        useNativeDriver: true,
+      }),
+      Animated.timing(pulseAnim, {
+        toValue: 1,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    if (tapCountRef.current >= ADMIN_TAP_COUNT) {
+      tapCountRef.current = 0;
+      if (isSignUp) {
+        // In sign-up mode: toggle invite code field
+        setShowInviteField(prev => !prev);
+      }
+    }
+  }, [pulseAnim, isSignUp]);
+
+  // ═══════════ REGULAR LOGIN VALIDATION ═══════════
   const validate = (): boolean => {
     const newErrors: typeof errors = {};
 
@@ -68,25 +130,68 @@ export default function LoginScreen() {
 
     try {
       if (isSignUp) {
-        await signUp(email.trim(), password, fullName.trim());
-        Alert.alert(
+        // ═══ INVITE CODE CHECK (if provided) ═══
+        let validInvite = false;
+        if (inviteCode.trim()) {
+          const { data: inv, error: invErr } = await supabase
+            .from("admin_invites")
+            .select("id, is_used")
+            .eq("code", inviteCode.trim().toUpperCase())
+            .single();
+
+          if (invErr || !inv) {
+            showAlert("GE\u00c7ERS\u0130Z KOD", "Girdi\u011finiz davet kodu ge\u00e7erli de\u011fil.", [{ text: "TAMAM" }]);
+            return;
+          }
+          if (inv.is_used) {
+            showAlert("KULLANILMI\u015e KOD", "Bu davet kodu daha \u00f6nce kullan\u0131lm\u0131\u015f.", [{ text: "TAMAM" }]);
+            return;
+          }
+          validInvite = true;
+        }
+
+        // ═══ SIGN UP ═══
+        const result = await signUp(email.trim(), password, fullName.trim());
+
+        // ═══ POST-SIGNUP: activate invite code ═══
+        if (validInvite && result?.user) {
+          // Set role to admin
+          await supabase.from("profiles").update({ role: "admin" }).eq("id", result.user.id);
+          // Mark invite as used
+          await supabase.from("admin_invites").update({
+            is_used: true,
+            used_by: result.user.id,
+          }).eq("code", inviteCode.trim().toUpperCase());
+        }
+
+        showAlert(
           "KAYIT BAŞARILI",
-          "Doğrulama bağlantısı e-posta adresinize gönderildi. Lütfen gelen kutunuzu (ve Spam/Gereksiz klasörünü) kontrol ediniz.",
-          [{ text: "TAMAM", onPress: () => setIsSignUp(false) }]
+          validInvite
+            ? "Yönetici hesabınız oluşturuldu. Doğrulama bağlantısı e-posta adresinize gönderildi."
+            : "Doğrulama bağlantısı e-posta adresinize gönderildi. Lütfen gelen kutunuzu kontrol ediniz.",
+          [{ text: "TAMAM", onPress: () => { setIsSignUp(false); setShowInviteField(false); setInviteCode(""); } }]
         );
       } else {
         await signIn(email.trim(), password);
       }
-    } catch (error: unknown) {
+    } catch (error: any) {
       let errorMessage = "Bir hata oluştu. Lütfen tekrar deneyin.";
       
       if (error instanceof Error) {
-        errorMessage = error.message;
+        if (error.message.includes("Invalid login credentials")) {
+          errorMessage = "E-posta veya şifre yanlış.";
+        } else {
+          errorMessage = error.message;
+        }
       } else if (typeof error === "string") {
-        errorMessage = error;
+        if (error.includes("Invalid login credentials")) {
+          errorMessage = "E-posta veya şifre yanlış.";
+        } else {
+          errorMessage = error;
+        }
       }
 
-      Alert.alert(
+      showAlert(
         isSignUp ? "KAYIT BAŞARISIZ" : "GİRİŞ BAŞARISIZ",
         errorMessage,
         [{ text: "ANLAŞILDI", style: "cancel" }]
@@ -98,6 +203,8 @@ export default function LoginScreen() {
     setIsSignUp(!isSignUp);
     setErrors({});
     setConfirmPassword("");
+    setShowInviteField(false);
+    setInviteCode("");
   };
 
   return (
@@ -114,7 +221,13 @@ export default function LoginScreen() {
           <View style={styles.container}>
             {/* Header Section */}
             <View style={styles.headerSection}>
-              <DeerLogo width={180} height={200} opacity={0.3} />
+              {/* ═══ 3-TAP EASTER EGG WRAPPER ═══ */}
+              <Pressable onPress={handleLogoTap} disabled={!isSignUp}>
+                <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                  <DeerLogo width={180} height={200} opacity={0.3} />
+                </Animated.View>
+              </Pressable>
+
               <View style={styles.titleWrap}>
                 <Text style={styles.appName}>{APP_NAME}</Text>
                 <View style={styles.subtitleRow}>
@@ -127,7 +240,6 @@ export default function LoginScreen() {
               <View style={styles.secureDivider}>
                 <View style={styles.secureLine} />
                 <View style={styles.secureLabel}>
-                  <Shield size={12} color="#555" />
                   <Text style={styles.secureLabelText}>
                     {isSignUp ? "YENİ KAYIT" : "GÜVENLİ GİRİŞ"}
                   </Text>
@@ -202,12 +314,32 @@ export default function LoginScreen() {
                 />
               )}
 
+              {/* Hidden invite code field (revealed by triple-tapping subtitle in sign-up mode) */}
+              {isSignUp && showInviteField && (
+                <TacticalInput
+                  label="Antrenör Davet Kodu"
+                  placeholder="BRKT-XXXXX"
+                  value={inviteCode}
+                  onChangeText={setInviteCode}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  icon={<KeyRound size={18} color="#4B5320" />}
+                />
+              )}
+
+              {!isSignUp && (
+                <View style={styles.forgotPasswordContainer}>
+                  <TouchableOpacity onPress={() => router.push("/(auth)/forgot-password")} activeOpacity={0.7}>
+                    <Text style={styles.forgotPasswordText}>Şifremi Unuttum</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <View style={styles.buttonWrap}>
                 <TacticalButton
                   title={isSignUp ? "KAYIT OL" : "GİRİŞ YAP"}
                   onPress={handleSubmit}
                   loading={loading}
-                  icon={<Shield size={18} color="#E0E0E0" />}
                 />
               </View>
 
@@ -231,22 +363,22 @@ export default function LoginScreen() {
             <View style={styles.footerSection}>
               <View style={styles.footerDivider}>
                 <View style={styles.secureLine} />
-                <Text style={styles.footerText}>BARİKAT SPOR SİSTEMLERİ</Text>
+                <Text style={styles.footerText}>BARİKAT'TA HER ŞEY MÜMKÜN</Text>
                 <View style={styles.secureLine} />
               </View>
-              <Text style={styles.versionText}>
-                v1.0.0 • GÜVENLİ ERİŞİM
-              </Text>
+              
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#121212" },
+  safeArea: { flex: 1, backgroundColor: "transparent" },
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1 },
   container: {
@@ -262,6 +394,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 12,
     color: "#E0E0E0",
+    textAlign: "center",
   },
   subtitleRow: {
     flexDirection: "row",
@@ -301,6 +434,8 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   formSection: { marginTop: 20 },
+  forgotPasswordContainer: { alignItems: "flex-end", marginTop: -8, marginBottom: 16, paddingRight: 4 },
+  forgotPasswordText: { color: "#666", fontSize: 12, fontWeight: "600", letterSpacing: 1 },
   buttonWrap: { marginTop: 20 },
   toggleButton: {
     flexDirection: "row",
@@ -335,4 +470,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     marginTop: 10,
   },
+
+
 });

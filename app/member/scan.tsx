@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, Alert, Animated, Vibration, StyleSheet } from "react-native";
+import { View, Text, Animated, Vibration, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   CameraView,
@@ -9,9 +9,9 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import {
   ScanLine,
-  ShieldCheck,
-  ShieldX,
-  ShieldAlert,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
   Camera,
   ArrowLeft,
   MapPin,
@@ -28,6 +28,7 @@ import {
   type LocationVerification,
 } from "@/lib/location";
 import TacticalButton from "@/components/TacticalButton";
+import { useAlert } from "@/components/CustomAlert";
 
 // ═══════════ CONSTANTS ═══════════
 const VALID_QR_CODE = "BARİKAT_GYM_ACCESS";
@@ -46,6 +47,7 @@ type GpsPhase =
 export default function ScanScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const { showAlert } = useAlert();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -53,6 +55,11 @@ export default function ScanScreen() {
     "success" | "error" | "invalid" | null
   >(null);
   const [resultMessage, setResultMessage] = useState("");
+
+  // ─── Membership gate states ───
+  const [membershipBlocked, setMembershipBlocked] = useState(false);
+  const [blockReason, setBlockReason] = useState<"inactive" | "expired" | "frozen" | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   // ─── GPS States ───
   const [gpsPhase, setGpsPhase] = useState<GpsPhase>("idle");
@@ -86,6 +93,47 @@ export default function ScanScreen() {
     animation.start();
     return () => animation.stop();
   }, []);
+
+  // ═══════════ MEMBERSHIP CHECK ON MOUNT ═══════════
+  useEffect(() => {
+    const checkMembership = async () => {
+      if (!user) { setProfileLoading(false); return; }
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("membership_end, status")
+          .eq("id", user.id)
+          .single();
+        if (data) {
+          // Check inactive (new signup, not yet approved)
+          if (data.status === "inactive" || !data.membership_end) {
+            setMembershipBlocked(true);
+            setBlockReason("inactive");
+          }
+          // Check frozen
+          else if (data.status === "frozen") {
+            setMembershipBlocked(true);
+            setBlockReason("frozen");
+          }
+          // Check expired
+          else if (data.membership_end) {
+            const endDate = new Date(data.membership_end);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (endDate < today) {
+              setMembershipBlocked(true);
+              setBlockReason("expired");
+            }
+          }
+        }
+      } catch {
+        // silent — allow scan as fallback
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+    checkMembership();
+  }, [user]);
 
   // ═══════════ RAPID FIRE FIX: Reset scan state on focus ═══════════
   useFocusEffect(
@@ -186,15 +234,10 @@ export default function ScanScreen() {
         Vibration.vibrate([0, 100, 50, 100]); // Error pattern
         setScanResult("invalid");
         setResultMessage("Geçersiz QR Kod");
-        Alert.alert(
-          "⚠ GEÇERSİZ QR KOD",
+        showAlert(
+          "GEÇERSİZ QR KOD",
           "Bu QR kod Barikat Gym'e ait değildir. Lütfen doğru QR kodu tarayınız.",
-          [
-            {
-              text: "TEKRAR TARA",
-              onPress: resetScan,
-            },
-          ]
+          [{ text: "TEKRAR TARA", onPress: resetScan }]
         );
         setProcessing(false);
         return;
@@ -212,9 +255,9 @@ export default function ScanScreen() {
         Vibration.vibrate([0, 200, 100, 200]);
         setScanResult("error");
         setResultMessage("Konum İzni Reddedildi");
-        Alert.alert(
+        showAlert(
           "🛡️ KONUM UYARISI",
-           "Konum erişimi reddedildi. Bu güvenlik özelliği, salon dışından işlem yapılmasını engeller.\n\nLütfen Ayarlar'dan konum iznini etkinleştirin.",
+          "Konum erişimi reddedildi. Bu güvenlik özelliği, salon dışından işlem yapılmasını engeller.\n\nLütfen Ayarlar'dan konum iznini etkinleştirin.",
           [{ text: "ANLAŞILDI", onPress: resetScan }]
         );
         setProcessing(false);
@@ -226,8 +269,8 @@ export default function ScanScreen() {
         Vibration.vibrate([0, 200, 100, 200]);
         setScanResult("error");
         setResultMessage("GPS Sinyali Alınamadı");
-        Alert.alert(
-          "📡 GPS SINYAL HATASI",
+        showAlert(
+          "📡 GPS SİNYAL HATASI",
           "GPS sinyali alınamadı. Lütfen:\n\n• Konum servislerinin açık olduğundan emin olun\n• Açık alana çıkın\n• Tekrar deneyin",
           [{ text: "TEKRAR DENE", onPress: resetScan }]
         );
@@ -240,9 +283,9 @@ export default function ScanScreen() {
         Vibration.vibrate([0, 300, 100, 300, 100, 300]); // Harsh pattern
         setScanResult("error");
         setResultMessage("Alan Dışı!");
-        Alert.alert(
+        showAlert(
           "🚨 ERİŞİM UYARISI",
-           `ALAN DIŞI TESPİT EDİLDİ!\n\nBu işlem için spor salonunda olmanız gerekmektedir.\n\n📍 Mesafe: ${locationResult.distanceMeters.toFixed(1)} metre\n🎯 İzin verilen: ${GYM_CONFIG.radiusMeters} metre\n\nSalon dışından giriş/çıkış işlemi yapılamaz.`,
+          `ALAN DIŞI TESPİT EDİLDİ!\n\nBu işlem için spor salonunda olmanız gerekmektedir.\n\n📍 Mesafe: ${locationResult.distanceMeters.toFixed(1)} metre\n🎯 İzin verilen: ${GYM_CONFIG.radiusMeters} metre\n\nSalon dışından giriş/çıkış işlemi yapılamaz.`,
           [{ text: "ANLAŞILDI", onPress: resetScan, style: "destructive" }]
         );
         setProcessing(false);
@@ -278,8 +321,8 @@ export default function ScanScreen() {
         Vibration.vibrate([0, 100, 50, 100, 50, 100]); // Triple success
         setScanResult("success");
         setResultMessage("Konum Doğrulandı. Giriş Onaylandı.");
-        Alert.alert(
-          "✅ GİRİŞ BAŞARILI",
+        showAlert(
+          "GİRİŞ BAŞARILI",
           "Konum doğrulandı. Hoş geldiniz!\n\n🎯 Giriş saatiniz kaydedildi.\n📍 Konum: Onaylandı\n\nİyi antrenmanlar!",
           [{ text: "TAMAM", onPress: () => router.back() }]
         );
@@ -304,9 +347,9 @@ export default function ScanScreen() {
         Vibration.vibrate([0, 100, 50, 100, 50, 100]);
         setScanResult("success");
         setResultMessage("Konum Doğrulandı. Çıkış Tamamlandı.");
-        Alert.alert(
-          "✅ ÇIKIŞ TAMAMLANDI",
-          `Konum doğrulandı. Görüşmek üzere!\n\n⏱ Süre: ${hours} saat ${minutes} dakika\n📍 Konum: Onaylandı`,
+        showAlert(
+          "ÇIKIŞ TAMAMLANDI",
+          `Konum doğrulandı. Görüşmek üzere!\n\nSüre: ${hours} saat ${minutes} dakika\n📍 Konum: Onaylandı`,
           [{ text: "TAMAM", onPress: () => router.back() }]
         );
       }
@@ -316,7 +359,7 @@ export default function ScanScreen() {
       let errorMessage = "Bir hata oluştu.";
       if (error instanceof Error) errorMessage = error.message;
       setResultMessage("İşlem Başarısız");
-      Alert.alert("❌ İŞLEM BAŞARISIZ", errorMessage, [
+      showAlert("İŞLEM BAŞARISIZ", errorMessage, [
         { text: "TEKRAR DENE", onPress: resetScan },
       ]);
     } finally {
@@ -373,9 +416,99 @@ export default function ScanScreen() {
 
   // ═══════════ RENDERS ═══════════
 
+  // Loading profile check
+  if (profileLoading) {
+    return (
+      <SafeAreaView style={s.centered} edges={['top', 'left', 'right']}>
+        <Text style={s.loadingText}>Üyelik durumu kontrol ediliyor...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // Membership inactive (pending approval) block
+  if (membershipBlocked && blockReason === "inactive") {
+    return (
+      <SafeAreaView style={[s.centered, { paddingHorizontal: 32 }]} edges={['top', 'left', 'right']}>
+        <View style={{
+          width: 80, height: 80, borderRadius: 40,
+          backgroundColor: "rgba(212,160,23,0.12)", borderWidth: 2, borderColor: "rgba(212,160,23,0.4)",
+          alignItems: "center", justifyContent: "center", marginBottom: 24,
+        }}>
+          <AlertCircle size={40} color="#D4A017" />
+        </View>
+        <Text style={[s.permTitle, { color: "#D4A017" }]}>ÜYELİĞİNİZ ONAY BEKLİYOR</Text>
+        <Text style={[s.permBody, { marginTop: 12, textAlign: "center", lineHeight: 20 }]}>
+          Kaydınız alınmıştır.{"\n"}Yönetici onayından sonra giriş yapabilirsiniz.
+        </Text>
+        <View style={{ width: "100%", marginTop: 32 }}>
+          <TacticalButton
+            title="GERİ DÖN"
+            variant="ghost"
+            onPress={() => router.back()}
+            icon={<ArrowLeft size={18} color="#A0A0A0" />}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Membership expired block
+  if (membershipBlocked && blockReason === "expired") {
+    return (
+      <SafeAreaView style={[s.centered, { paddingHorizontal: 32 }]} edges={['top', 'left', 'right']}>
+        <View style={{
+          width: 80, height: 80, borderRadius: 40,
+          backgroundColor: "rgba(139,0,0,0.12)", borderWidth: 2, borderColor: "rgba(139,0,0,0.4)",
+          alignItems: "center", justifyContent: "center", marginBottom: 24,
+        }}>
+          <XCircle size={40} color="#8B0000" />
+        </View>
+        <Text style={[s.permTitle, { color: "#C0392B" }]}>ÜYELİK SÜRENİZ DOLMUŞTUR</Text>
+        <Text style={[s.permBody, { marginTop: 12, textAlign: "center", lineHeight: 20 }]}>
+          Üyelik süreniz sona ermiştir.{"\n"}Lütfen yönetici ile görüşünüz.
+        </Text>
+        <View style={{ width: "100%", marginTop: 32 }}>
+          <TacticalButton
+            title="GERİ DÖN"
+            variant="ghost"
+            onPress={() => router.back()}
+            icon={<ArrowLeft size={18} color="#A0A0A0" />}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Membership frozen block
+  if (membershipBlocked && blockReason === "frozen") {
+    return (
+      <SafeAreaView style={[s.centered, { paddingHorizontal: 32 }]} edges={['top', 'left', 'right']}>
+        <View style={{
+          width: 80, height: 80, borderRadius: 40,
+          backgroundColor: "rgba(93,173,226,0.1)", borderWidth: 2, borderColor: "rgba(93,173,226,0.3)",
+          alignItems: "center", justifyContent: "center", marginBottom: 24,
+        }}>
+          <AlertCircle size={40} color="#5DADE2" />
+        </View>
+        <Text style={[s.permTitle, { color: "#5DADE2" }]}>ÜYELİĞİNİZ DONDURULMUŞTUR</Text>
+        <Text style={[s.permBody, { marginTop: 12, textAlign: "center", lineHeight: 20 }]}>
+          Üyeliğiniz şu anda askıya alınmıştır.{"\n"}Lütfen yönetici ile iletişime geçiniz.
+        </Text>
+        <View style={{ width: "100%", marginTop: 32 }}>
+          <TacticalButton
+            title="GERİ DÖN"
+            variant="ghost"
+            onPress={() => router.back()}
+            icon={<ArrowLeft size={18} color="#A0A0A0" />}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!permission) {
     return (
-      <SafeAreaView style={s.centered}>
+      <SafeAreaView style={s.centered} edges={['top', 'left', 'right']}>
         <Text style={s.loadingText}>Yükleniyor...</Text>
       </SafeAreaView>
     );
@@ -383,7 +516,7 @@ export default function ScanScreen() {
 
   if (!permission.granted) {
     return (
-      <SafeAreaView style={[s.centered, { paddingHorizontal: 32 }]}>
+      <SafeAreaView style={[s.centered, { paddingHorizontal: 32 }]} edges={['top', 'left', 'right']}>
         <Camera size={48} color="#555" />
         <Text style={s.permTitle}>KAMERA İZNİ GEREKLİ</Text>
         <Text style={s.permBody}>
@@ -410,10 +543,10 @@ export default function ScanScreen() {
 
   const renderResultIcon = () => {
     if (scanResult === "success")
-      return <ShieldCheck size={64} color="#4B5320" />;
-    if (scanResult === "error") return <ShieldX size={64} color="#8B0000" />;
+      return <CheckCircle size={64} color="#4B5320" />;
+    if (scanResult === "error") return <XCircle size={64} color="#8B0000" />;
     if (scanResult === "invalid")
-      return <ShieldAlert size={64} color="#B8860B" />;
+      return <AlertCircle size={64} color="#B8860B" />;
     return null;
   };
 
@@ -425,7 +558,7 @@ export default function ScanScreen() {
     gpsPhase !== "out_of_zone";
 
   return (
-    <SafeAreaView style={s.safeArea}>
+    <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
       {/* ═══ Header ═══ */}
       <View style={s.header}>
         <TacticalButton
@@ -469,7 +602,7 @@ export default function ScanScreen() {
             ) : gpsPhase === "out_of_zone" ||
               gpsPhase === "denied" ||
               gpsPhase === "failed" ? (
-              <ShieldX size={14} color="#8B0000" />
+              <XCircle size={14} color="#8B0000" />
             ) : (
               <Radio size={14} color="#B8860B" />
             )}
@@ -565,10 +698,10 @@ export default function ScanScreen() {
 }
 
 const s = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#121212" },
+  safeArea: { flex: 1, backgroundColor: "transparent" },
   centered: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
   },

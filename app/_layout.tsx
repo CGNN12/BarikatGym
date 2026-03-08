@@ -1,6 +1,6 @@
 import "@/global.css";
-import React, { useEffect } from "react";
-import { Slot, useRouter, useSegments } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { Stack, useRouter, useSegments, useRootNavigationState } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import {
   View,
@@ -16,19 +16,18 @@ import {
   Inter_700Bold,
   Inter_900Black,
 } from "@expo-google-fonts/inter";
-import {
-  ThemeProvider,
-  DarkTheme,
-} from "@react-navigation/native";
+import { ThemeProvider, DarkTheme } from "@react-navigation/native";
 import * as SplashScreen from "expo-splash-screen";
 import { useAuth } from "@/hooks/useAuth";
 import { registerBackgroundAutoCheckout } from "@/utils/backgroundTasks";
+import { AlertProvider } from "@/components/CustomAlert";
+import { supabase } from "@/lib/supabase";
 
 // Keep splash screen visible while loading
 SplashScreen.preventAutoHideAsync();
 
 // ═══════════ CUSTOM DARK THEME ═══════════
-// Override React Navigation's default theme to enforce matte black
+// Override React Navigation's default white to enforce matte black
 const BarikatDarkTheme = {
   ...DarkTheme,
   colors: {
@@ -42,25 +41,113 @@ const BarikatDarkTheme = {
   },
 };
 
-// ═══════════ AUTH GUARD ═══════════
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading, initialized } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const navigationState = useRootNavigationState();
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [isRoleLoading, setIsRoleLoading] = useState(false);
+  const roleCheckedForId = React.useRef<string | null>(null);
 
+  // Step 1: When user session exists, fetch role from DB (once per user)
   useEffect(() => {
     if (!initialized) return;
 
-    const inAuthGroup = segments[0] === "(auth)";
-
-    if (!user && !inAuthGroup) {
-      router.replace("/(auth)/login");
-    } else if (user && inAuthGroup) {
-      router.replace("/(tabs)/dashboard");
+    // OTURUM YOKSA (No Session) DURUMU
+    if (!user) {
+      setUserRole(null);
+      roleCheckedForId.current = null;
+      setIsRoleLoading(false); // Direkt yüklemeyi durdur
+      return;
     }
-  }, [user, initialized, segments]);
 
-  if (!initialized) {
+    // Eğer rol zaten bu kullanıcı için çekildiyse tekrar çekme
+    if (roleCheckedForId.current === user.id) {
+      setIsRoleLoading(false); // Emniyet sübabı
+      return;
+    }
+
+    // Rol çekilecek
+    let isMounted = true;
+    setIsRoleLoading(true);
+    
+    // ZORUNLU ZAMAN AŞIMI (FAIL-SAFE TIMEOUT): 3 Saniye
+    const failSafeTimer = setTimeout(() => {
+      if (isMounted) {
+        setUserRole("member");
+        setIsRoleLoading(false); // Ekran Kilidi AÇILDI
+        roleCheckedForId.current = user?.id || null;
+      }
+    }, 3000);
+
+    const fetchRole = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        if (isMounted) {
+          if (error) {
+            setUserRole("member"); // Hata durumunda varsayılan üye
+          } else {
+            setUserRole(data?.role ?? "member");
+          }
+          roleCheckedForId.current = user.id;
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          setUserRole("member"); // Hata durumunda varsayılan üye
+          roleCheckedForId.current = user.id;
+        }
+      } finally {
+        // TRY-CATCH-FINALLY YAPISI: İşlem bitince yüklemeyi KESİNLİKLE durdur
+        if (isMounted) {
+          clearTimeout(failSafeTimer); // İşlem başarılı olduysa zaman aşımı bombasını iptal et
+          setIsRoleLoading(false);
+        }
+      }
+    };
+
+    fetchRole();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(failSafeTimer);
+    };
+  }, [user, initialized]);
+
+  // Step 2: Once role is resolved, redirect to the correct area
+  useEffect(() => {
+    // NAVİGASYON HAZIRLIK KONTROLÜ (Kritik!)
+    if (!navigationState?.key) return;
+    if (!initialized || isRoleLoading) return;
+
+    const inAuthGroup = segments[0] === "(auth)";
+    const inAdminGroup = segments[0] === "admin";
+    const inMemberGroup = segments[0] === "member";
+
+    // KUSURSUZ VE TEMİZ YÖNLENDİRME (100ms Gecikmeli)
+    const timeoutId = setTimeout(() => {
+      if (!user) {
+        if (!inAuthGroup) router.replace("/(auth)/login");
+        return;
+      }
+
+      if (userRole === "admin") {
+        if (!inAdminGroup) router.replace("/admin");
+      } else {
+        if (!inMemberGroup) router.replace("/member");
+      }
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
+  }, [user, initialized, isRoleLoading, userRole, segments, navigationState?.key]);
+
+  // Show loading while auth or role is resolving
+  if (!initialized || isRoleLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4B5320" />
@@ -87,33 +174,37 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
-  // Register background auto-checkout task
-  useEffect(() => {
-    registerBackgroundAutoCheckout();
-  }, []);
+  // TIKANIKLIK GİDERİCİ (Balyoz): Arka plan görevlerini tamamen kaldırdık
 
   if (!fontsLoaded && !fontError) {
     return null;
   }
 
-  // STRUCTURE:
-  // Layer 1: View with #121212 (absolute black foundation — NEVER transparent)
-  // Layer 2: ImageBackground with deer at ~8% opacity (no backgroundColor)
-  // Layer 3: ThemeProvider forces dark theme on ALL React Navigation screens
-  // Layer 4: App content (Slot)
+  // LAYER HIERARCHY:
+  // 1. View (#121212)  ← Jet black foundation, NEVER transparent
+  // 2. ImageBackground  ← Detailed deer (bgicon) at ~18% opacity, khaki tint HUD
+  // 3. ThemeProvider     ← Forces dark on all React Navigation screens
+  // 4. Slot             ← App content
   return (
     <>
       <StatusBar style="light" />
       <View style={styles.blackBase}>
         <ImageBackground
-          source={require("@/assets/logo.png")}
-          style={styles.flex}
+          source={require("@/assets/bgicon.png")}
+          style={styles.imageBackground}
           imageStyle={styles.deerImage}
         >
           <ThemeProvider value={BarikatDarkTheme}>
-            <AuthGuard>
-              <Slot />
-            </AuthGuard>
+            <AlertProvider>
+              <AuthGuard>
+                <Stack 
+                  screenOptions={{ 
+                    headerShown: false,
+                    contentStyle: { backgroundColor: 'transparent' }
+                  }} 
+                />
+              </AuthGuard>
+            </AlertProvider>
           </ThemeProvider>
         </ImageBackground>
       </View>
@@ -121,24 +212,32 @@ export default function RootLayout() {
   );
 }
 
+// ═══════════ ALL INLINE STYLES — NO NATIVEWIND ═══════════
 const styles = StyleSheet.create({
-  // Layer 1: Jet black foundation — NEVER transparent, NEVER white
+  // Layer 1: Black base
   blackBase: {
     flex: 1,
     backgroundColor: "#121212",
   },
-  flex: {
+  // Layer 2: ImageBackground fills entire screen, NO backgroundColor
+  imageBackground: {
     flex: 1,
   },
-  // Layer 2: Deer silhouette overlay — subtle, blurred
+  // Layer 2 image: Detailed deer (bgicon) — HUD glass effect
   deerImage: {
-    opacity: 0.08,
+    opacity: 0.18,
     resizeMode: "contain",
     tintColor: "#4B5320",
+    width: "60%",
+    height: "60%",
+    alignSelf: "center",
+    top: "20%",
+    left: "20%",
   },
+  // Loading screen
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
   },

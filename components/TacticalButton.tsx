@@ -18,17 +18,17 @@ interface TacticalButtonProps extends TouchableOpacityProps {
 
 const VARIANT_STYLES = {
   primary: {
-    bg: "#4B5320",
+    bg: "rgba(75,83,32,0.65)",
     border: "#5C6B2A",
     text: "#E0E0E0",
   },
   secondary: {
-    bg: "#2A2A2A",
+    bg: "rgba(42,42,42,0.6)",
     border: "#444444",
     text: "#A0A0A0",
   },
   danger: {
-    bg: "#8B0000",
+    bg: "rgba(139,0,0,0.65)",
     border: "#A52A2A",
     text: "#E0E0E0",
   },
@@ -88,11 +88,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 3,
     borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 8,
   },
   iconWrap: {
     marginRight: 12,

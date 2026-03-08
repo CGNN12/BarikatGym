@@ -75,10 +75,11 @@ export function useAuth() {
         if (error) throw new Error(error.message); // Hata mesajını string olarak fırlat
 
         if (data.user) {
-          // Trigger çalışmazsa diye manuel profil oluşturma
+          // Profil oluştur — tarih bilgisi GÖNDERME, admin onaylayana kadar null kalacak
           await supabase.from("profiles").upsert({
             id: data.user.id,
             full_name: fullName,
+            status: "inactive",
             updated_at: new Date().toISOString(),
           });
         }

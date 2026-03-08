@@ -12,7 +12,6 @@ import {
   LogOut,
   Clock,
   AlertTriangle,
-  Shield,
   Activity,
   Calendar,
 } from "lucide-react-native";
@@ -24,7 +23,7 @@ import { supabase } from "@/lib/supabase";
 import type { Profile, GymLog, MembershipStatus } from "@/lib/types";
 import OccupancyDisplay from "@/components/OccupancyDisplay";
 import TacticalButton from "@/components/TacticalButton";
-import DeerLogo from "@/components/DeerLogo";
+
 import ActivityChart from "@/components/ActivityChart";
 
 export default function DashboardScreen() {
@@ -181,7 +180,7 @@ export default function DashboardScreen() {
   const warningColor = isExpired ? "#8B0000" : "#B8860B";
 
   return (
-    <SafeAreaView style={s.safeArea}>
+    <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView
         style={s.flex}
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -204,15 +203,48 @@ export default function DashboardScreen() {
               <Text style={s.statusText}>SİSTEM AKTİF</Text>
             </View>
           </View>
-          <DeerLogo width={50} height={55} opacity={0.35} />
         </View>
 
         {/* Greeting */}
         <View style={s.greetingWrap}>
-          <Text style={s.greetingLabel}>Hoş Geldin, Sporcu</Text>
-          <Text style={s.greetingName}>
-            {profile?.full_name || "Yükleniyor..."}
+          <Text style={s.greetingText}>
+            Hoş Geldin, <Text style={s.greetingName}>{profile?.full_name || "Yükleniyor..."}</Text>
           </Text>
+
+          {/* ═══════════ STATUS BADGE ═══════════ */}
+          {profile && (
+            <View style={[
+              s.statusBadge,
+              profile.status === "active" ? s.statusBadgeActive :
+              profile.status === "frozen" ? s.statusBadgeFrozen :
+              profile.status === "inactive" || profile.status === "pending" ? s.statusBadgeInactive :
+              s.statusBadgeExpired,
+            ]}>
+              <View style={[
+                s.statusBadgeDot,
+                { backgroundColor:
+                  profile.status === "active" ? "#5C6B2A" :
+                  profile.status === "frozen" ? "#5DADE2" :
+                  profile.status === "inactive" || profile.status === "pending" ? "#808080" :
+                  "#C0392B"
+                },
+              ]} />
+              <Text style={[
+                s.statusBadgeLabel,
+                { color:
+                  profile.status === "active" ? "#5C6B2A" :
+                  profile.status === "frozen" ? "#5DADE2" :
+                  profile.status === "inactive" || profile.status === "pending" ? "#808080" :
+                  "#C0392B"
+                },
+              ]}>
+                {profile.status === "active" ? "AKTİF" :
+                 profile.status === "frozen" ? "DONDURULMUŞ" :
+                 profile.status === "inactive" || profile.status === "pending" ? "ONAY BEKLİYOR" :
+                 "SÜRESİ DOLMUŞ"}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* ═══════════ TASK 1: LIVE OCCUPANCY ═══════════ */}
@@ -243,8 +275,8 @@ export default function DashboardScreen() {
               <View style={s.warningContent}>
                 <Text style={[s.warningTitle, { color: warningColor }]}>
                   {isExpired
-                    ? "⚠ ÜYELİK SONA ERDİ"
-                    : "⚠ ÜYELİK UYARISI"}
+                    ? "ÜYELİK SONA ERDİ"
+                    : "ÜYELİK UYARISI"}
                 </Text>
                 <Text style={s.warningBody}>
                   {isExpired
@@ -299,7 +331,7 @@ export default function DashboardScreen() {
                 <LogIn size={20} color="#E0E0E0" />
               )
             }
-            onPress={() => router.push("/(tabs)/scan")}
+            onPress={() => router.push("/member/scan")}
           />
         </View>
 
@@ -377,7 +409,7 @@ export default function DashboardScreen() {
 }
 
 const s = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#121212" },
+  safeArea: { flex: 1, backgroundColor: "transparent" },
   flex: { flex: 1 },
 
   headerRow: {
@@ -406,17 +438,53 @@ const s = StyleSheet.create({
   },
 
   greetingWrap: { paddingHorizontal: 24, marginTop: 16, marginBottom: 20 },
-  greetingLabel: {
+  greetingText: {
     color: "#666",
     fontSize: 11,
     letterSpacing: 3,
     textTransform: "uppercase",
   },
   greetingName: {
-    color: "#E0E0E0",
-    fontSize: 18,
-    fontWeight: "600",
-    marginTop: 4,
+    color: "#666",
+  },
+
+  // ═══════════ STATUS BADGE ═══════════
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    marginTop: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderRadius: 20,
+    gap: 6,
+  },
+  statusBadgeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  statusBadgeLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 3,
+  },
+  statusBadgeActive: {
+    backgroundColor: "rgba(75,83,32,0.12)",
+    borderColor: "rgba(75,83,32,0.4)",
+  },
+  statusBadgeFrozen: {
+    backgroundColor: "rgba(93,173,226,0.1)",
+    borderColor: "rgba(93,173,226,0.35)",
+  },
+  statusBadgeInactive: {
+    backgroundColor: "rgba(128,128,128,0.1)",
+    borderColor: "rgba(128,128,128,0.3)",
+  },
+  statusBadgeExpired: {
+    backgroundColor: "rgba(139,0,0,0.1)",
+    borderColor: "rgba(139,0,0,0.3)",
   },
 
   section: { paddingHorizontal: 24, marginBottom: 16 },
@@ -439,7 +507,7 @@ const s = StyleSheet.create({
   warningBody: { color: "#A0A0A0", fontSize: 12, marginTop: 4 },
 
   sessionCard: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: "rgba(26,26,26,0.65)",
     borderWidth: 1,
     borderColor: "rgba(75,83,32,0.3)",
     borderRadius: 3,
@@ -489,7 +557,7 @@ const s = StyleSheet.create({
   statsGrid: { flexDirection: "row", gap: 12 },
   statCard: {
     flex: 1,
-    backgroundColor: "#1A1A1A",
+    backgroundColor: "rgba(26,26,26,0.65)",
     borderWidth: 1,
     borderColor: "#333",
     borderRadius: 3,

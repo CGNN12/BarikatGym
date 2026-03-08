@@ -31,9 +31,9 @@ type DateRange = 7 | 30;
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const CHART_WIDTH = SCREEN_WIDTH - 48;
 
-// Chart X-axis: 3-hour intervals from 06:00 to 00:00
-const CHART_HOURS = [6, 9, 12, 15, 18, 21, 0];
-const CHART_LABELS = ["06:00", "09:00", "12:00", "15:00", "18:00", "21:00", "00:00"];
+// Chart X-axis: gym hours 06:00 → 23:00 (gym closes at 23:00)
+const CHART_HOURS = [6, 9, 12, 15, 18, 21, 23];
+const CHART_LABELS = ["06:00", "09:00", "12:00", "15:00", "18:00", "21:00", "23:00"];
 
 // 3 main time periods for intensity analysis
 const TIME_PERIODS = [
@@ -74,12 +74,15 @@ export default function ActivityChart() {
         return;
       }
 
+      // Only count hours within gym operating hours (06:00-23:00)
       const hourCounts: Record<number, number> = {};
       for (let h = 0; h < 24; h++) hourCounts[h] = 0;
 
       data.forEach((log) => {
         const hour = new Date(log.entry_time).getHours();
-        hourCounts[hour]++;
+        if (hour >= 6 && hour <= 23) {
+          hourCounts[hour]++;
+        }
       });
 
       const result: HourlyData[] = Object.entries(hourCounts).map(
@@ -112,7 +115,7 @@ export default function ActivityChart() {
         totalActivity: 0,
       };
 
-    const activeHours = hourlyData.filter((d) => d.hour >= 6);
+    const activeHours = hourlyData.filter((d) => d.hour >= 6 && d.hour <= 23);
     let peakHour = 0;
     let peakCount = 0;
     let totalActivity = 0;
@@ -144,14 +147,17 @@ export default function ActivityChart() {
 
   const hasData = analysis.totalActivity > 0;
 
-  // ─── Chart data: 3-hour intervals on X-axis ───
+  // ─── Chart data: 3-hour intervals on X-axis, ending at 23:00 ───
   const chartData = useMemo(() => {
-    // Aggregate hourly data into 3-hour buckets for the chart
-    const bucketValues = CHART_HOURS.map((bucketStart) => {
-      // Each bucket covers 3 hours: bucketStart to bucketStart+2
+    const bucketValues = CHART_HOURS.map((bucketStart, index) => {
+      // Determine how many hours this bucket covers
+      const nextBucket = index < CHART_HOURS.length - 1 ? CHART_HOURS[index + 1] : 24;
+      const bucketSize = nextBucket - bucketStart;
+
       let sum = 0;
-      for (let offset = 0; offset < 3; offset++) {
-        const h = (bucketStart + offset) % 24;
+      for (let offset = 0; offset < bucketSize; offset++) {
+        const h = bucketStart + offset;
+        if (h > 23) break;
         const entry = hourlyData.find((d) => d.hour === h);
         if (entry) sum += entry.count;
       }
@@ -205,37 +211,37 @@ export default function ActivityChart() {
         <Text style={s.collapseHint}>{collapsed ? "▼" : "▲"}</Text>
       </TouchableOpacity>
 
-      {/* ═══ TARİH SEÇİCİ — Her zaman görünür ═══ */}
-      <View style={s.rangeRow}>
-        <TouchableOpacity
-          onPress={() => setDateRange(7)}
-          style={[s.rangeBtn, dateRange === 7 && s.rangeBtnActive]}
-        >
-          <Text
-            style={[s.rangeBtnText, dateRange === 7 && s.rangeBtnTextActive]}
-          >
-            SON 7 GÜN
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setDateRange(30)}
-          style={[s.rangeBtn, dateRange === 30 && s.rangeBtnActive]}
-        >
-          <Text
-            style={[
-              s.rangeBtnText,
-              dateRange === 30 && s.rangeBtnTextActive,
-            ]}
-          >
-            SON 30 GÜN
-          </Text>
-        </TouchableOpacity>
-        <View style={{ flex: 1 }} />
-      </View>
-
-      {/* ═══ İÇERİK ═══ */}
+      {/* ═══ COLLAPSIBLE CONTENT — Buttons + Chart + Analysis ═══ */}
       {!collapsed && (
         <>
+          {/* TARİH SEÇİCİ — INSIDE collapsible area */}
+          <View style={s.rangeRow}>
+            <TouchableOpacity
+              onPress={() => setDateRange(7)}
+              style={[s.rangeBtn, dateRange === 7 && s.rangeBtnActive]}
+            >
+              <Text
+                style={[s.rangeBtnText, dateRange === 7 && s.rangeBtnTextActive]}
+              >
+                SON 7 GÜN
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setDateRange(30)}
+              style={[s.rangeBtn, dateRange === 30 && s.rangeBtnActive]}
+            >
+              <Text
+                style={[
+                  s.rangeBtnText,
+                  dateRange === 30 && s.rangeBtnTextActive,
+                ]}
+              >
+                SON 30 GÜN
+              </Text>
+            </TouchableOpacity>
+            <View style={{ flex: 1 }} />
+          </View>
+
           {/* YÜKLEME DURUMU */}
           {loading && (
             <View style={s.loadingWrap}>
@@ -279,7 +285,7 @@ export default function ActivityChart() {
           {/* GRAFİK + ANALİZ — Sadece veri varsa */}
           {!loading && !error && hasData && (
             <>
-              {/* Grafik — saat etiketleri X ekseninde */}
+              {/* Grafik — saat etiketleri X ekseninde (06:00 → 23:00) */}
               <View style={s.chartContainer}>
                 <View style={s.scanlineOverlay} pointerEvents="none">
                   {Array.from({ length: 12 }).map((_, i) => (
@@ -306,8 +312,10 @@ export default function ActivityChart() {
                   yAxisInterval={1}
                   chartConfig={{
                     backgroundColor: "transparent",
-                    backgroundGradientFrom: "#1A1A1A",
-                    backgroundGradientTo: "#1A1A1A",
+                    backgroundGradientFrom: "#121212",
+                    backgroundGradientTo: "#121212",
+                    backgroundGradientFromOpacity: 0,
+                    backgroundGradientToOpacity: 0,
                     decimalPlaces: 0,
                     color: (opacity = 1) =>
                       `rgba(75, 83, 32, ${opacity})`,
@@ -456,7 +464,7 @@ export default function ActivityChart() {
 
 const s = StyleSheet.create({
   card: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: "rgba(26,26,26,0.65)",
     borderWidth: 1,
     borderColor: "rgba(75,83,32,0.3)",
     borderRadius: 3,

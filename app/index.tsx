@@ -1,21 +1,11 @@
-import { Redirect } from "expo-router";
-import { useAuth } from "@/hooks/useAuth";
 import { View, ActivityIndicator } from "react-native";
 
+// Root index — AuthGuard in _layout.tsx handles all routing
+// This just shows a loading spinner while auth state resolves
 export default function Index() {
-  const { user, initialized } = useAuth();
-
-  if (!initialized) {
-    return (
-      <View className="flex-1 bg-tactical-black items-center justify-center">
-        <ActivityIndicator size="large" color="#4B5320" />
-      </View>
-    );
-  }
-
-  if (user) {
-    return <Redirect href="/(tabs)/dashboard" />;
-  }
-
-  return <Redirect href="/(auth)/login" />;
+  return (
+    <View style={{ flex: 1, backgroundColor: "#121212", alignItems: "center", justifyContent: "center" }}>
+      <ActivityIndicator size="large" color="#4B5320" />
+    </View>
+  );
 }

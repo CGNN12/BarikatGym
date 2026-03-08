@@ -1,50 +1,53 @@
 import { Tabs } from "expo-router";
-import { Dumbbell, ScanLine, UserCircle } from "lucide-react-native";
+import { Dumbbell, Users, User } from "lucide-react-native";
 import { COLORS } from "@/constants/theme";
-import { View } from "react-native";
+import { View, Platform, StyleSheet } from "react-native";
 
-export default function TabsLayout() {
+export default function AdminTabsLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: COLORS.darkGray,
-          borderTopColor: COLORS.border,
-          borderTopWidth: 1,
-          height: 70,
-          paddingBottom: 10,
+          backgroundColor: "#121212",
+          borderTopWidth: 0,
+          borderTopColor: "transparent",
+          height: Platform.OS === "ios" ? 90 : 70,
+          paddingBottom: Platform.OS === "ios" ? 25 : 12,
           paddingTop: 8,
-          elevation: 20,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.5,
-          shadowRadius: 10,
+          minHeight: 70,
+          elevation: 0,
+          shadowOpacity: 0,
         },
+        tabBarBackground: () => (
+          <View style={StyleSheet.absoluteFill}>
+            <View style={{ flex: 1, backgroundColor: "#121212" }} />
+          </View>
+        ),
         tabBarActiveTintColor: COLORS.green,
-        tabBarInactiveTintColor: COLORS.textDark,
+        tabBarInactiveTintColor: "#808080",
         tabBarLabelStyle: {
           fontSize: 9,
           fontFamily: "Inter_600SemiBold",
           letterSpacing: 2,
           textTransform: "uppercase",
-          marginTop: 4,
+          marginTop: 2,
+          marginBottom: Platform.OS === "ios" ? 0 : 4,
+        },
+        sceneStyle: {
+          backgroundColor: "transparent",
         },
       }}
     >
       <Tabs.Screen
-        name="dashboard"
+        name="index"
         options={{
           title: "MERKEZ",
           tabBarIcon: ({ color, focused }) => (
             <View
               style={
                 focused
-                  ? {
-                      padding: 6,
-                      borderRadius: 4,
-                      backgroundColor: "rgba(75,83,32,0.2)",
-                    }
+                  ? { padding: 6, borderRadius: 4, backgroundColor: "rgba(75,83,32,0.2)" }
                   : { padding: 6 }
               }
             >
@@ -54,22 +57,18 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="scan"
+        name="members"
         options={{
-          title: "TARAMA",
+          title: "ÜYELER",
           tabBarIcon: ({ color, focused }) => (
             <View
               style={
                 focused
-                  ? {
-                      padding: 6,
-                      borderRadius: 4,
-                      backgroundColor: "rgba(75,83,32,0.2)",
-                    }
+                  ? { padding: 6, borderRadius: 4, backgroundColor: "rgba(75,83,32,0.2)" }
                   : { padding: 6 }
               }
             >
-              <ScanLine size={22} color={color} />
+              <Users size={22} color={color} />
             </View>
           ),
         }}
@@ -82,15 +81,11 @@ export default function TabsLayout() {
             <View
               style={
                 focused
-                  ? {
-                      padding: 6,
-                      borderRadius: 4,
-                      backgroundColor: "rgba(75,83,32,0.2)",
-                    }
+                  ? { padding: 6, borderRadius: 4, backgroundColor: "rgba(75,83,32,0.2)" }
                   : { padding: 6 }
               }
             >
-              <UserCircle size={22} color={color} />
+              <User size={22} color={color} />
             </View>
           ),
         }}
