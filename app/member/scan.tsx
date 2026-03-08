@@ -135,6 +135,61 @@ export default function ScanScreen() {
     checkMembership();
   }, [user]);
 
+  // ═══════════ REALTIME: PROFILE STATUS SUBSCRIPTION ═══════════
+  useEffect(() => {
+    if (!user) return;
+
+    const profileChannel = supabase
+      .channel("realtime_scan_profile_status")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: "id=eq." + user.id,
+        },
+        (payload: { new: Record<string, unknown> }) => {
+          const updated = payload.new as { status?: string; membership_end?: string };
+
+          // Instantly block if admin changed status to non-active
+          if (updated.status === "inactive" || updated.status === "pending") {
+            setMembershipBlocked(true);
+            setBlockReason("inactive");
+          } else if (updated.status === "frozen") {
+            setMembershipBlocked(true);
+            setBlockReason("frozen");
+          } else if (updated.status === "active") {
+            // Admin re-activated the member — check expiry only
+            if (updated.membership_end) {
+              const endDate = new Date(updated.membership_end);
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              if (endDate < today) {
+                setMembershipBlocked(true);
+                setBlockReason("expired");
+              } else {
+                setMembershipBlocked(false);
+                setBlockReason(null);
+              }
+            } else {
+              setMembershipBlocked(false);
+              setBlockReason(null);
+            }
+          }
+        }
+      )
+      .subscribe((status, err) => {
+        if (err) {
+          console.error("Scan profile realtime subscription error:", err);
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(profileChannel);
+    };
+  }, [user]);
+
   // ═══════════ RAPID FIRE FIX: Reset scan state on focus ═══════════
   useFocusEffect(
     useCallback(() => {

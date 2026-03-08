@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Clock,
   AlertTriangle,
   Activity,
+  ShieldOff,
   Calendar,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
@@ -114,7 +115,7 @@ export default function DashboardScreen() {
     }, [loadData])
   );
 
-  // ═══════════ TASK 1: REALTIME SUBSCRIPTION ═══════════
+  // ═══════════ TASK 1: REALTIME SUBSCRIPTION (GYM LOGS) ═══════════
   useEffect(() => {
     const subscription = supabase
       .channel("realtime_gym_logs")
@@ -157,6 +158,53 @@ export default function DashboardScreen() {
     };
   }, [fetchActiveCount, fetchCurrentSession]);
 
+  // ═══════════ REALTIME: PROFILE STATUS SUBSCRIPTION ═══════════
+  useEffect(() => {
+    if (!user) return;
+
+    const profileChannel = supabase
+      .channel("realtime_profile_status")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: "id=eq." + user.id,
+        },
+        (payload: { new: Record<string, unknown> }) => {
+          // Admin changed user status in real-time  
+          const updated = payload.new as Partial<Profile>;
+          setProfile((prev) => (prev ? { ...prev, ...updated } : prev));
+
+          // Also recalculate membership status if membership_end changed
+          if (updated.membership_end) {
+            const endDate = new Date(updated.membership_end);
+            const today = new Date();
+            const diffTime = endDate.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            setMembershipDaysLeft(diffDays);
+            if (diffDays <= 0) {
+              setMembershipStatus("expired");
+            } else if (diffDays <= MEMBERSHIP_WARNING_DAYS) {
+              setMembershipStatus("expiring_soon");
+            } else {
+              setMembershipStatus("active");
+            }
+          }
+        }
+      )
+      .subscribe((status, err) => {
+        if (err) {
+          console.error("Profile realtime subscription error:", err);
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(profileChannel);
+    };
+  }, [user]);
+
   // ═══════════ HELPERS ═══════════
 
   const formatDuration = (entryTime: string) => {
@@ -178,6 +226,11 @@ export default function DashboardScreen() {
   const isExpired = membershipStatus === "expired";
   const isExpiring = membershipStatus === "expiring_soon";
   const warningColor = isExpired ? "#8B0000" : "#B8860B";
+
+  // ═══════════ QR ACCESS GATE: Block non-active users ═══════════
+  const isAccountActive = profile?.status === "active";
+  const isFrozen = profile?.status === "frozen";
+  const isInactive = profile?.status === "inactive" || profile?.status === "pending";
 
   return (
     <SafeAreaView style={s.safeArea} edges={['top', 'left', 'right']}>
@@ -311,7 +364,7 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* ═══════════ ACTION BUTTON ═══════════ */}
+        {/* ═══════════ ACTION BUTTON / BLOCKED STATE ═══════════ */}
         <View style={s.section}>
           <View style={s.sectionDivider}>
             <View style={s.dividerLine} />
@@ -319,20 +372,49 @@ export default function DashboardScreen() {
             <View style={s.dividerLine} />
           </View>
 
-          <TacticalButton
-            title={
-              currentSession ? "ÇIKIŞ İÇİN QR TARA" : "GİRİŞ İÇİN QR TARA"
-            }
-            variant={currentSession ? "danger" : "primary"}
-            icon={
-              currentSession ? (
-                <LogOut size={20} color="#E0E0E0" />
-              ) : (
-                <LogIn size={20} color="#E0E0E0" />
-              )
-            }
-            onPress={() => router.push("/member/scan")}
-          />
+          {isAccountActive ? (
+            <TacticalButton
+              title={
+                currentSession ? "ÇIKIŞ İÇİN QR TARA" : "GİRİŞ İÇİN QR TARA"
+              }
+              variant={currentSession ? "danger" : "primary"}
+              icon={
+                currentSession ? (
+                  <LogOut size={20} color="#E0E0E0" />
+                ) : (
+                  <LogIn size={20} color="#E0E0E0" />
+                )
+              }
+              onPress={() => router.push("/member/scan")}
+            />
+          ) : (
+            /* ═══ BLOCKED: Membership not active ═══ */
+            <View style={s.blockedCard}>
+              <View style={s.blockedIconWrap}>
+                <ShieldOff
+                  size={28}
+                  color={isFrozen ? "#5DADE2" : isInactive ? "#D4A017" : "#C0392B"}
+                />
+              </View>
+              <Text style={[
+                s.blockedTitle,
+                { color: isFrozen ? "#5DADE2" : isInactive ? "#D4A017" : "#C0392B" },
+              ]}>
+                {isFrozen
+                  ? "ÜYELİĞİNİZ DONDURULMUŞTUR"
+                  : isInactive
+                  ? "ÜYELİĞİNİZ ONAY BEKLİYOR"
+                  : "ÜYELİĞİNİZ AKTİF DEĞİLDİR"}
+              </Text>
+              <Text style={s.blockedBody}>
+                {isFrozen
+                  ? "Üyeliğiniz şu anda askıya alınmıştır. QR tarama işlemi yapılamaz. Lütfen yönetime başvurun."
+                  : isInactive
+                  ? "Kaydınız henüz onaylanmamıştır. QR tarama işlemi yapılamaz. Lütfen yönetici onayını bekleyin."
+                  : "Üyeliğiniz aktif değildir veya dondurulmuştur. Lütfen yönetime başvurun."}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* ═══════════ TASK 2: QUICK STATS WITH DAYS REMAINING ═══════════ */}
@@ -583,6 +665,42 @@ const s = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     marginRight: 8,
+  },
+
+  // ═══════════ BLOCKED CARD ═══════════
+  blockedCard: {
+    backgroundColor: "rgba(26,26,26,0.65)",
+    borderWidth: 1,
+    borderColor: "rgba(139,0,0,0.3)",
+    borderLeftWidth: 3,
+    borderRadius: 3,
+    padding: 20,
+    alignItems: "center",
+  },
+  blockedIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(139,0,0,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(139,0,0,0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  blockedTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 3,
+    textTransform: "uppercase",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  blockedBody: {
+    color: "#A0A0A0",
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
   },
 
   footer: {

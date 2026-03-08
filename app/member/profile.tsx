@@ -9,6 +9,9 @@ import {
   StyleSheet,
   Modal,
   FlatList,
+  Image,
+  ActivityIndicator,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAlert } from "@/components/CustomAlert";
@@ -26,7 +29,9 @@ import {
   Mail,
   ChevronDown,
   AlertCircle,
+  Camera,
 } from "lucide-react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import type { Profile, GymLog } from "@/lib/types";
@@ -34,6 +39,15 @@ import TacticalButton from "@/components/TacticalButton";
 import TacticalInput from "@/components/TacticalInput";
 
 const PREVIEW_COUNT = 3;
+const AVATAR_SIZE = 120;
+
+// ═══════════ AVATAR HELPER ═══════════
+function getInitials(name: string): string {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
@@ -52,6 +66,10 @@ export default function ProfileScreen() {
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editLoading, setEditLoading] = useState(false);
+
+  // ═══════════ AVATAR STATE ═══════════
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   // ═══════════ HISTORY FILTER STATE ═══════════
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null); // null = All
@@ -120,7 +138,8 @@ export default function ProfileScreen() {
     await fetchAllLogs();
   };
 
-  // E-posta format kontrolü
+  // ═══════════ E-POSTA DOĞRULAMA ═══════════
+
   const isValidEmail = (email: string) => {
     if (email.trim().length === 0) return true; // Boş = değiştirmeyecek
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -132,8 +151,82 @@ export default function ProfileScreen() {
   const openEditModal = () => {
     setEditName(profile?.full_name || "");
     setEditEmail("");
+    setAvatarPreview(null);
     setIsEditModalVisible(true);
   };
+
+  // ═══════════ AVATAR: IMAGE PICKER ═══════════
+
+  const pickAvatar = async () => {
+    // İzin kontrolü
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      showAlert(
+        "İZİN GEREKLİ",
+        "Fotoğraf seçebilmek için galeri erişimine izin vermeniz gerekmektedir.",
+        [{ text: "TAMAM" }]
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      setAvatarPreview(result.assets[0].uri);
+    }
+  };
+
+  // ═══════════ AVATAR: SUPABASE STORAGE UPLOAD ═══════════
+
+  const uploadAvatar = async (): Promise<string | null> => {
+    if (!avatarPreview || !user) return null;
+
+    try {
+      setAvatarUploading(true);
+
+      const fileName = `${user.id}_${Date.now()}.jpg`;
+      const filePath = fileName;
+
+      // Fetch the image as blob
+      const response = await fetch(avatarPreview);
+      const blob = await response.blob();
+
+      // Convert blob to ArrayBuffer for Supabase upload
+      const arrayBuffer = await new Response(blob).arrayBuffer();
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, arrayBuffer, {
+          contentType: "image/jpeg",
+          cacheControl: "3600",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        throw uploadError;
+      }
+
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      return publicUrlData.publicUrl;
+    } catch (err) {
+      console.error("Avatar upload failed:", err);
+      return null;
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  // ═══════════ KAYDET ═══════════
 
   const handleUpdateProfile = async () => {
     setEditLoading(true);
@@ -150,22 +243,38 @@ export default function ProfileScreen() {
         return;
       }
 
-      // 1) İsim güncelleme
+      // 1) Avatar yükleme (varsa)
+      let newAvatarUrl: string | null = null;
+      if (avatarPreview) {
+        newAvatarUrl = await uploadAvatar();
+        if (!newAvatarUrl) {
+          showAlert("HATA", "Fotoğraf yüklenemedi. Lütfen tekrar deneyin.");
+          setEditLoading(false);
+          return;
+        }
+      }
+
+      // 2) İsim güncelleme
       const nameUpdate: any = { data: { full_name: editName.trim() } };
       const { data, error } = await supabase.auth.updateUser(nameUpdate);
       if (error) throw error;
 
       if (data.user) {
-        await supabase.from("profiles").update({ full_name: editName.trim() }).eq("id", data.user.id);
-        setProfile(prev => prev ? { ...prev, full_name: editName.trim() } : prev);
+        const profileUpdate: Record<string, string> = { full_name: editName.trim() };
+        if (newAvatarUrl) {
+          profileUpdate.avatar_url = newAvatarUrl;
+        }
+        await supabase.from("profiles").update(profileUpdate).eq("id", data.user.id);
+        setProfile(prev => prev ? { ...prev, ...profileUpdate } : prev);
       }
 
-      // 2) E-posta güncelleme (kullanıcı yeni mail yazdıysa)
+      // 3) E-posta güncelleme (kullanıcı yeni mail yazdıysa)
       if (editEmail.trim().length > 0 && editEmail.trim() !== user?.email) {
         const { error: emailErr } = await supabase.auth.updateUser({ email: editEmail.trim() });
         if (emailErr) throw emailErr;
 
         setIsEditModalVisible(false);
+        setAvatarPreview(null);
         showAlert(
           "GÜVENLİK ONAYI GEREKİYOR",
           "Güvenlik onayı gereklidir!\n\nHem mevcut (eski) e-posta adresinize hem de yeni adresinize onay linkleri gönderildi.\n\nLütfen gelen kutularınızı kontrol edin.",
@@ -173,6 +282,7 @@ export default function ProfileScreen() {
         );
       } else {
         setIsEditModalVisible(false);
+        setAvatarPreview(null);
         showAlert("BAŞARILI", "Profil bilgileriniz güncellendi.", [{ text: "TAMAM" }]);
       }
     } catch (e: any) {
@@ -247,6 +357,20 @@ export default function ProfileScreen() {
 
   const daysLeft = getDaysRemaining();
 
+  // ═══════════ AVATAR DISPLAY HELPERS ═══════════
+
+  const currentAvatarUrl = avatarPreview || profile?.avatar_url || null;
+  const initials = getInitials(profile?.full_name || "");
+
+  // Status-based colors
+  const getStatusColor = () => {
+    if (profile?.status === "frozen") return "#5DADE2";
+    if (profile?.status === "inactive" || profile?.status === "pending") return "#808080";
+    if (!profile || (daysLeft !== null && daysLeft <= 0)) return "#8B0000";
+    return "#4B5320";
+  };
+  const statusColor = getStatusColor();
+
   // ═══════════ LOG CARD RENDERER ═══════════
 
   const renderLogItem = (log: GymLog) => (
@@ -281,6 +405,67 @@ export default function ProfileScreen() {
 
   const previewLogs = recentLogs.slice(0, PREVIEW_COUNT);
 
+  // ═══════════ AVATAR COMPONENT ═══════════
+
+  const renderAvatar = (size: number, inCard = false) => {
+    const url = inCard ? (profile?.avatar_url || null) : currentAvatarUrl;
+    const borderColor = inCard ? statusColor : "#4B5320";
+    const bgColor = inCard
+      ? (profile?.status === "frozen" ? "rgba(93,173,226,0.1)" :
+         profile?.status === "inactive" || profile?.status === "pending" ? "rgba(128,128,128,0.1)" :
+         !profile || (daysLeft !== null && daysLeft <= 0) ? "rgba(139,0,0,0.1)" :
+         "rgba(75,83,32,0.15)")
+      : "rgba(75,83,32,0.15)";
+
+    if (url) {
+      return (
+        <Image
+          source={{ uri: url }}
+          style={[
+            {
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+              borderWidth: 2,
+              borderColor,
+            },
+          ]}
+        />
+      );
+    }
+
+    // Initials fallback
+    return (
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: bgColor,
+          borderWidth: 2,
+          borderColor,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {size >= 80 ? (
+          <Text
+            style={{
+              color: borderColor,
+              fontSize: size * 0.32,
+              fontWeight: "900",
+              letterSpacing: 2,
+            }}
+          >
+            {initials}
+          </Text>
+        ) : (
+          <User size={size * 0.45} color={borderColor} />
+        )}
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={s.safeArea} edges={["top", "left", "right"]}>
       <ScrollView
@@ -299,14 +484,12 @@ export default function ProfileScreen() {
         {/* ═══════════ TACTICAL IDENTITY CARD ═══════════ */}
         <View style={s.idCard}>
           {/* Top highlight bar */}
-          <View style={[s.idAccent, profile?.status === "frozen" ? { backgroundColor: "#5DADE2" } : profile?.status === "inactive" || profile?.status === "pending" ? { backgroundColor: "#808080" } : !profile || daysLeft !== null && daysLeft <= 0 ? { backgroundColor: "#8B0000" } : { backgroundColor: "#4B5320" }]} />
+          <View style={[s.idAccent, { backgroundColor: statusColor }]} />
           
           <View style={s.idCardInner}>
-            {/* Left side: Avatar/Icon */}
+            {/* Left side: Avatar */}
             <View style={s.idAvatarWrap}>
-              <View style={[s.idAvatarBg, profile?.status === "frozen" ? { borderColor: "#5DADE2", backgroundColor: "rgba(93,173,226,0.1)" } : profile?.status === "inactive" || profile?.status === "pending" ? { borderColor: "#808080", backgroundColor: "rgba(128,128,128,0.1)" } : !profile || daysLeft !== null && daysLeft <= 0 ? { borderColor: "#8B0000", backgroundColor: "rgba(139,0,0,0.1)" } : { borderColor: "#4B5320" }]}>
-                <User size={32} color={profile?.status === "frozen" ? "#5DADE2" : profile?.status === "inactive" || profile?.status === "pending" ? "#808080" : !profile || daysLeft !== null && daysLeft <= 0 ? "#8B0000" : "#4B5320"} />
-              </View>
+              {renderAvatar(68, true)}
               {profile?.status === "active" && <View style={s.idOnlineDot} />}
             </View>
 
@@ -314,7 +497,7 @@ export default function ProfileScreen() {
             <View style={s.idInfoWrap}>
               <View style={s.idHeaderRow}>
                 <View style={s.idRoleRow}>
-                  <Text style={[s.roleText, profile?.status === "frozen" ? { color: "#5DADE2" } : profile?.status === "inactive" || profile?.status === "pending" ? { color: "#808080" } : !profile || daysLeft !== null && daysLeft <= 0 ? { color: "#8B0000" } : { color: "#4B5320" }]}>
+                  <Text style={[s.roleText, { color: statusColor }]}>
                     {profile?.status === "active" ? "AKTİF ÜYE" :
                      profile?.status === "frozen" ? "ASKIDA" :
                      profile?.status === "inactive" || profile?.status === "pending" ? "ONAY BEKLİYOR" :
@@ -554,10 +737,11 @@ export default function ProfileScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* ═══════════ EDIT PROFILE MODAL ═══════════ */}
+      {/* ═══════════ EDIT PROFILE MODAL (WITH AVATAR) ═══════════ */}
       <Modal visible={isEditModalVisible} transparent animationType="fade" onRequestClose={() => setIsEditModalVisible(false)}>
         <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => !editLoading && setIsEditModalVisible(false)}>
           <TouchableOpacity style={s.modalBox} activeOpacity={1} onPress={() => {}}>
+            {/* Header */}
             <View style={s.editModalHeader}>
                <View style={s.editModalHeaderLeft}>
                  <Edit3 size={18} color="#4B5320" />
@@ -565,8 +749,45 @@ export default function ProfileScreen() {
                </View>
                <TouchableOpacity onPress={() => !editLoading && setIsEditModalVisible(false)} style={s.editModalCloseBtn}><X size={16} color="#666" /></TouchableOpacity>
             </View>
+
+            {/* ═══ AVATAR SECTION ═══ */}
+            <View style={s.avatarSection}>
+              <TouchableOpacity
+                onPress={pickAvatar}
+                activeOpacity={0.7}
+                disabled={editLoading}
+                style={s.avatarTouchable}
+              >
+                {/* Avatar Circle */}
+                <View style={s.avatarOuterRing}>
+                  {avatarUploading ? (
+                    <View style={s.avatarUploadingOverlay}>
+                      <ActivityIndicator size="large" color="#4B5320" />
+                    </View>
+                  ) : currentAvatarUrl ? (
+                    <Image
+                      source={{ uri: currentAvatarUrl }}
+                      style={s.avatarImage}
+                    />
+                  ) : (
+                    <View style={s.avatarPlaceholder}>
+                      <Text style={s.avatarInitials}>{initials}</Text>
+                    </View>
+                  )}
+
+                  {/* Camera Badge */}
+                  <View style={s.cameraBadge}>
+                    <Camera size={14} color="#E0E0E0" />
+                  </View>
+                </View>
+              </TouchableOpacity>
+              <Text style={s.avatarHint}>FOTOĞRAF YÜKLE</Text>
+            </View>
+
+            {/* Separator */}
             <View style={s.editModalSep}><View style={s.editModalSepLine} /><User size={12} color="#4B5320" /><View style={s.editModalSepLine} /></View>
             
+            {/* Form Fields */}
             <View style={{ marginBottom: 16 }}>
               <TacticalInput
                 label="Ad Soyad"
@@ -592,11 +813,12 @@ export default function ProfileScreen() {
               )}
             </View>
 
+            {/* Save Button */}
             <TacticalButton
-               title="BİLGİLERİ KAYDET"
+               title={avatarUploading ? "YÜKLENIYOR..." : "BİLGİLERİ KAYDET"}
                onPress={handleUpdateProfile}
                loading={editLoading}
-               disabled={!canSave}
+               disabled={!canSave || avatarUploading}
                icon={<ShieldCheck size={18} color="#E0E0E0" />}
             />
           </TouchableOpacity>
@@ -611,11 +833,11 @@ const s = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "transparent" },
   flex: { flex: 1 },
 
+  // ═══════════ ID CARD ═══════════
   idCard: { backgroundColor: "rgba(26,26,26,0.5)", borderWidth: 1, borderColor: "#333", borderRadius: 10, overflow: "hidden", marginBottom: 16, marginTop: 16, elevation: 5, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, marginHorizontal: 24 },
   idAccent: { height: 4, backgroundColor: "#4B5320", width: "100%" },
   idCardInner: { flexDirection: "row", alignItems: "center", padding: 20, gap: 20 },
   idAvatarWrap: { position: "relative" },
-  idAvatarBg: { width: 68, height: 68, borderRadius: 34, backgroundColor: "rgba(75,83,32,0.15)", borderWidth: 2, borderColor: "#4B5320", alignItems: "center", justifyContent: "center" },
   idOnlineDot: { position: "absolute", bottom: 2, right: 2, width: 14, height: 14, borderRadius: 7, backgroundColor: "#5C6B2A", borderWidth: 2, borderColor: "#1A1A1A" },
   idInfoWrap: { flex: 1, justifyContent: "center", gap: 4 },
   idHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 2 },
@@ -771,7 +993,7 @@ const s = StyleSheet.create({
     textTransform: "uppercase",
   },
 
-  // Modal
+  // ═══════════ HISTORY MODAL ═══════════
   modalSafeArea: { flex: 1, backgroundColor: "#121212" },
   modalHeader: {
     flexDirection: "row",
@@ -843,6 +1065,7 @@ const s = StyleSheet.create({
     marginLeft: 6,
   },
 
+  // ═══════════ DROPDOWN ═══════════
   dropdownHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(26,26,26,0.65)", borderWidth: 1, borderColor: "#333", borderRadius: 6, paddingVertical: 14, paddingHorizontal: 16 },
   dropdownHeaderText: { color: "#E0E0E0", fontSize: 11, fontWeight: "700", letterSpacing: 3 },
   dropdownListWrap: { marginTop: 8, backgroundColor: "#1A1A1A", borderWidth: 1, borderColor: "#333", borderRadius: 6, overflow: "hidden" },
@@ -852,6 +1075,7 @@ const s = StyleSheet.create({
   dropdownItemTextActive: { color: "#4B5320" },
   dropdownItemDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#4B5320" },
 
+  // ═══════════ EDIT MODAL ═══════════
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", alignItems: "center", paddingHorizontal: 20 },
   modalBox: { width: "100%", maxWidth: 400, backgroundColor: "#1A1A1A", borderRadius: 8, borderWidth: 1, borderColor: "#333", paddingVertical: 24, paddingHorizontal: 20 },
   editModalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
@@ -860,4 +1084,80 @@ const s = StyleSheet.create({
   editModalCloseBtn: { padding: 4, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.05)" },
   editModalSep: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 20 },
   editModalSepLine: { flex: 1, height: 1, backgroundColor: "#333" },
+
+  // ═══════════ AVATAR (EDIT MODAL) ═══════════
+  avatarSection: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  avatarTouchable: {
+    alignItems: "center",
+  },
+  avatarOuterRing: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarImage: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    borderWidth: 3,
+    borderColor: "#4B5320",
+  },
+  avatarPlaceholder: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    backgroundColor: "rgba(75,83,32,0.15)",
+    borderWidth: 3,
+    borderColor: "#4B5320",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitials: {
+    color: "#4B5320",
+    fontSize: 38,
+    fontWeight: "900",
+    letterSpacing: 4,
+  },
+  avatarUploadingOverlay: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    backgroundColor: "rgba(26,26,26,0.85)",
+    borderWidth: 3,
+    borderColor: "#4B5320",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cameraBadge: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#3D4520",
+    borderWidth: 2,
+    borderColor: "#1A1A1A",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+  },
+  avatarHint: {
+    color: "#666",
+    fontSize: 9,
+    letterSpacing: 3,
+    fontWeight: "700",
+    marginTop: 10,
+    textTransform: "uppercase",
+  },
 });

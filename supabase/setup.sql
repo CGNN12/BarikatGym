@@ -207,6 +207,8 @@ create index if not exists idx_gym_logs_entry_time on public.gym_logs (entry_tim
 -- ─────────────────────────────────────────────────────────────
 alter publication supabase_realtime add table public.gym_logs;
 
+alter publication supabase_realtime add table public.profiles;
+
 -- ─────────────────────────────────────────────────────────────
 -- 6. NOTIFICATIONS TABLE (Sneak-in Detection / Kaçak Giriş)
 -- ─────────────────────────────────────────────────────────────
