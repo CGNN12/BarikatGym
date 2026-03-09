@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, Image
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LogOut, Users, Activity, User, Ticket, ShieldCheck, Mail, X, Edit3, AlertCircle, Camera } from "lucide-react-native";
+import { LogOut, Users, Activity, User, Ticket, ShieldCheck, Mail, X, Edit3, AlertCircle, Camera, Trash2 } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { decode } from "base64-arraybuffer";
 import { supabase } from "@/lib/supabase";
@@ -54,6 +54,7 @@ export default function AdminProfileScreen() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [removeAvatar, setRemoveAvatar] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -123,6 +124,7 @@ export default function AdminProfileScreen() {
     setEditEmail("");
     setAvatarPreview(null);
     setAvatarBase64(null);
+    setRemoveAvatar(false);
     setIsEditModalVisible(true);
   };
 
@@ -150,6 +152,7 @@ export default function AdminProfileScreen() {
     if (!result.canceled && result.assets.length > 0) {
       setAvatarPreview(result.assets[0].uri);
       setAvatarBase64(result.assets[0].base64 ?? null);
+      setRemoveAvatar(false);
     }
   };
 
@@ -223,14 +226,18 @@ export default function AdminProfileScreen() {
       if (nameError) throw nameError;
 
       if (nameData.user) {
-        const profileUpdate: Record<string, string> = { full_name: editName.trim() };
+        const profileUpdate: Record<string, string | null> = { full_name: editName.trim() };
         if (newAvatarUrl) {
           profileUpdate.avatar_url = newAvatarUrl;
+        } else if (removeAvatar) {
+          profileUpdate.avatar_url = null;
         }
         await supabase.from("profiles").update(profileUpdate).eq("id", nameData.user.id);
         setAdminName(editName.trim());
         if (newAvatarUrl) {
           setAdminAvatarUrl(newAvatarUrl);
+        } else if (removeAvatar) {
+          setAdminAvatarUrl(null);
         }
       }
 
@@ -324,8 +331,7 @@ export default function AdminProfileScreen() {
   }, []);
 
   // ═══════════ AVATAR DISPLAY HELPERS ═══════════
-
-  const currentAvatarUrl = avatarPreview || adminAvatarUrl || null;
+  const currentAvatarUrl = removeAvatar ? null : (avatarPreview || adminAvatarUrl || null);
   const initials = getInitials(adminName);
 
   const renderCardAvatar = (size: number) => {
@@ -489,6 +495,23 @@ export default function AdminProfileScreen() {
                   <View style={st.cameraBadge}>
                     <Camera size={14} color="#E0E0E0" />
                   </View>
+
+                  {/* Trash Badge for Removal */}
+                  {currentAvatarUrl && (
+                    <TouchableOpacity 
+                      onPress={(e) => {
+                        e.stopPropagation(); // Avoid picking new photo when deleting
+                        setAvatarPreview(null);
+                        setAvatarBase64(null);
+                        setRemoveAvatar(true);
+                      }} 
+                      activeOpacity={0.7}
+                      disabled={editLoading}
+                      style={st.trashBadge}
+                    >
+                      <Trash2 size={14} color="#FFF" />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </TouchableOpacity>
               <Text style={st.avatarHint}>FOTOĞRAF YÜKLE</Text>
@@ -735,6 +758,24 @@ const st = StyleSheet.create({
     height: 34,
     borderRadius: 17,
     backgroundColor: "#3D4520",
+    borderWidth: 2,
+    borderColor: "#1A1A1A",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+  },
+  trashBadge: {
+    position: "absolute",
+    bottom: 2,
+    left: 2,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#8B0000",
     borderWidth: 2,
     borderColor: "#1A1A1A",
     alignItems: "center",
