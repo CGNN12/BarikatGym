@@ -8,10 +8,10 @@ import * as Location from "expo-location";
 
 export const GYM_CONFIG = {
   // TODO: CANLIYA ÇIKARKEN BURAYI TEKRAR GERÇEK SPOR SALONU KOORDİNATLARIYLA DEĞİŞTİR
-  /** Gym latitude (Geçici Test: Ev) */
-  latitude: 39.92229029881965,
-  /** Gym longitude (Geçici Test: Ev) */
-  longitude: 32.821464775616256,
+  /** Gym latitude (Barikat Gym) */
+  latitude: 39.919396214196894,
+  /** Gym longitude (Barikat Gym) */
+  longitude: 32.82346193468419,
   /**
    * Maximum allowed distance in meters.
    * UAT STRICT MODE: 100m — merkezden itibaren kesin sınır.

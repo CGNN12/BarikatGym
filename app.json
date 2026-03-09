@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Barikat Gym",
-    "slug": "Barikat Gym",
+    "slug": "barikat-gym",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
@@ -17,7 +17,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.barikatgym.app",
       "infoPlist": {
-        "UIBackgroundModes": ["location", "fetch"],
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ],
         "NSLocationWhenInUseUsageDescription": "Spor salonuna girişinizi doğrulamak ve QR kod okutmadan içeride olup olmadığınızı tespit etmek için konumunuza ihtiyacımız var.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Arka planda (uygulama kapalıyken bile) spor salonu sınırları içinde ne kadar süre geçirdiğinizi hesaplamak için konum izni gereklidir.",
         "NSLocationAlwaysUsageDescription": "Spor salonu sınırları içinde olduğunuzu tespit etmek için her zaman konum iznine ihtiyacımız var."
@@ -35,7 +38,16 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "RECEIVE_BOOT_COMPLETED"
+        "RECEIVE_BOOT_COMPLETED",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.WAKE_LOCK"
       ]
     },
     "web": {
@@ -63,6 +75,12 @@
       ],
       "expo-background-fetch",
       "expo-task-manager"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3bf97748-ccfb-4c9d-8b8c-2282a1896f25"
+      }
+    }
   }
 }

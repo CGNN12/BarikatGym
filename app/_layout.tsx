@@ -417,6 +417,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 // ═══════════ ROOT LAYOUT ═══════════
 export default function RootLayout() {
+  // Splash screen state
+  const [appIsReady, setAppIsReady] = useState(false);
+  const [overlayVisible, setOverlayVisible] = useState(true);
+  const splashFade = useRef(new Animated.Value(1)).current;
+
+  // Step 1: Font loading
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -425,15 +431,41 @@ export default function RootLayout() {
     Inter_900Black,
   });
 
+  // Step 2: Logic for preparation and hiding native splash
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
+    async function prepare() {
+      // Ekranda logonun gerçekten görünmesi için en az 1.5 saniye bekle (Premium hissi)
+      const minimumDelay = new Promise(resolve => setTimeout(resolve, 1500));
+      
+      try {
+        if (fontsLoaded || fontError) {
+          await minimumDelay;
+          setAppIsReady(true);
+          
+          // Native splash'i burada kapatıyoruz, bizim custom overlay devraldı bile
+          await SplashScreen.hideAsync().catch(() => {});
+        }
+      } catch (e) {
+        console.warn(e);
+        setAppIsReady(true);
+      }
     }
+    prepare();
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) {
-    return null;
-  }
+  // Step 3: Trigger custom overlay fade-out
+  useEffect(() => {
+    if (appIsReady) {
+      Animated.timing(splashFade, {
+        toValue: 0,
+        duration: 1000,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+        useNativeDriver: true,
+      }).start(() => {
+        setOverlayVisible(false);
+      });
+    }
+  }, [appIsReady]);
 
   // LAYER HIERARCHY:
   // 1. View (#121212)  ← Jet black foundation
@@ -443,7 +475,7 @@ export default function RootLayout() {
   // 5. AuthGuard         ← Role-based routing
   // 6. Stack             ← App content
   return (
-    <>
+    <View style={styles.blackBase}>
       <StatusBar style="light" />
       <View style={styles.blackBase}>
         <ImageBackground
@@ -467,7 +499,39 @@ export default function RootLayout() {
           </LocationGuard>
         </ImageBackground>
       </View>
-    </>
+
+      {/* Premium Splash Overlay Layer */}
+      {overlayVisible && (
+        <Animated.View 
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            { 
+              backgroundColor: '#121212', 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              opacity: splashFade,
+              zIndex: 9999,
+            }
+          ]}
+        >
+          <Animated.Image
+            source={require("@/assets/logo.png")}
+            style={{
+              width: 240,
+              height: 240,
+              resizeMode: 'contain',
+              transform: [{ 
+                scale: splashFade.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1.1, 1]
+                }) 
+              }]
+            }}
+          />
+        </Animated.View>
+      )}
+    </View>
   );
 }
 
