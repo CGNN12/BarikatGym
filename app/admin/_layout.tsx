@@ -2,10 +2,12 @@ import { Tabs } from "expo-router";
 import { Dumbbell, Users, User } from "lucide-react-native";
 import { COLORS } from "@/constants/theme";
 import { Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const TAB_BAR_HEIGHT = Platform.OS === "ios" ? 92 : 72;
+
 
 export default function AdminTabsLayout() {
+  const insets = useSafeAreaInsets();
   return (
     <Tabs
       screenOptions={{
@@ -14,8 +16,8 @@ export default function AdminTabsLayout() {
           backgroundColor: "#0E0E0E",
           borderTopWidth: 1,
           borderTopColor: "#1E1E1E",
-          height: TAB_BAR_HEIGHT,
-          paddingBottom: Platform.OS === "ios" ? 26 : 10,
+          height: 60 + (insets.bottom > 0 ? insets.bottom : 10),
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
           paddingTop: 10,
           elevation: 0,
           shadowOpacity: 0,

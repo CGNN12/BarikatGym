@@ -312,7 +312,6 @@ export default function SecurityBell() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalSubtitle}>SECURITY BREACH LOG</Text>
 
             {/* Separator */}
             <View style={styles.separator}>
@@ -334,7 +333,6 @@ export default function SecurityBell() {
               ) : notifications.length === 0 ? (
                 <View style={styles.emptyState}>
                   <ShieldAlert size={28} color="#2A2A2A" />
-                  <Text style={styles.emptyTitle}>TEMİZ BÖLGE</Text>
                   <Text style={styles.emptySub}>
                     Kayıtlı güvenlik ihlali bulunmuyor.
                   </Text>

@@ -15,8 +15,11 @@ import {
   Camera,
   ArrowLeft,
   MapPin,
+  MapPinOff,
   Crosshair,
   Radio,
+  ShieldOff,
+  RefreshCw,
 } from "lucide-react-native";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
@@ -68,6 +71,11 @@ export default function ScanScreen() {
   );
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
 
+  // ─── LOCATION PRE-CHECK (gate) ───
+  const [locationGate, setLocationGate] = useState<"checking" | "allowed" | "blocked" | "error">("checking");
+  const [gateDistance, setGateDistance] = useState<number | null>(null);
+  const [gateRetrying, setGateRetrying] = useState(false);
+
   // ─── GPS Signal Animation ───
   const gpsPulse = useRef(new Animated.Value(0.3)).current;
 
@@ -93,6 +101,51 @@ export default function ScanScreen() {
     animation.start();
     return () => animation.stop();
   }, []);
+
+  // ═══════════ LOCATION PRE-CHECK ON MOUNT ═══════════
+  // Kullanıcı 100m dışındaysa QR ekranını tamamen kilitle
+  const runLocationGateCheck = useCallback(async () => {
+    setLocationGate("checking");
+    setGateRetrying(true);
+    try {
+      const hasPermission = await requestLocationPermission();
+      if (!hasPermission) {
+        setLocationGate("error");
+        setGateRetrying(false);
+        return;
+      }
+      setLocationPermitted(true);
+
+      const result = await Promise.race<Awaited<ReturnType<typeof verifyGymProximity>> | "timeout">([
+        verifyGymProximity(),
+        new Promise<"timeout">((resolve) =>
+          setTimeout(() => resolve("timeout"), GYM_CONFIG.gpsTimeoutMs)
+        ),
+      ]);
+
+      if (result === "timeout") {
+        setLocationGate("error");
+        setGateRetrying(false);
+        return;
+      }
+
+      setGateDistance(result.distanceMeters);
+
+      if (result.verified) {
+        setLocationGate("allowed");
+      } else {
+        setLocationGate("blocked");
+      }
+    } catch {
+      setLocationGate("error");
+    } finally {
+      setGateRetrying(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    runLocationGateCheck();
+  }, [runLocationGateCheck]);
 
   // ═══════════ MEMBERSHIP CHECK ON MOUNT ═══════════
   useEffect(() => {
@@ -200,26 +253,18 @@ export default function ScanScreen() {
       setGpsPhase("idle");
       setGpsAccuracy(null);
 
+      // Re-run location gate check on every focus
+      runLocationGateCheck();
+
       return () => {
         // Cleanup if needed
       };
-    }, [])
+    }, [runLocationGateCheck])
   );
 
   // ═══════════ LOCATION VERIFICATION ═══════════
 
   const verifyLocation = async (): Promise<LocationVerification | null> => {
-    // DEV MODE BYPASS
-    if (GYM_CONFIG.devBypass) {
-      console.log("📍 DEV MODE: Location check bypassed");
-      return {
-        verified: true,
-        distanceMeters: 0,
-        accuracyMeters: 5,
-        latitude: GYM_CONFIG.latitude,
-        longitude: GYM_CONFIG.longitude,
-      };
-    }
 
     // Step 1: Request permission
     setGpsPhase("requesting_permission");
@@ -463,7 +508,7 @@ export default function ScanScreen() {
       case "out_of_zone":
         return "#8B0000";
       case "idle":
-        return "#555";
+        return "#4B5320";
       default:
         return "#B8860B"; // Amber for in-progress
     }
@@ -561,6 +606,105 @@ export default function ScanScreen() {
     );
   }
 
+  // ═══════════ LOCATION GATE — SCREEN BLOCKED ═══════════
+  // Konum kontrolü yapılıyor
+  if (locationGate === "checking") {
+    return (
+      <SafeAreaView style={s.centered} edges={['top', 'left', 'right']}>
+        <Animated.View style={{ opacity: gpsPulse }}>
+          <MapPin size={48} color="#B8860B" />
+        </Animated.View>
+        <Text style={[s.permTitle, { color: "#B8860B", marginTop: 20 }]}>KONUM DOĞRULANIYOR</Text>
+        <Text style={[s.permBody, { marginTop: 8 }]}>
+          GPS sinyali alınıyor ve mesafe hesaplanıyor...
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
+  // Konum hatası (izin reddedildi veya GPS alınamadı)
+  if (locationGate === "error") {
+    return (
+      <SafeAreaView style={[s.centered, { paddingHorizontal: 32 }]} edges={['top', 'left', 'right']}>
+        <View style={{
+          width: 80, height: 80, borderRadius: 40,
+          backgroundColor: "rgba(184,134,11,0.12)", borderWidth: 2, borderColor: "rgba(184,134,11,0.4)",
+          alignItems: "center", justifyContent: "center", marginBottom: 24,
+        }}>
+          <AlertCircle size={40} color="#B8860B" />
+        </View>
+        <Text style={[s.permTitle, { color: "#B8860B" }]}>KONUM ALINAMADI</Text>
+        <Text style={[s.permBody, { marginTop: 12, textAlign: "center", lineHeight: 20 }]}>
+          GPS sinyali alınamadı veya konum izni reddedildi.{"\n"}
+          QR tarama için konum doğrulaması zorunludur.{"\n\n"}
+          Lütfen konum servislerini açın ve tekrar deneyin.
+        </Text>
+        <View style={{ width: "100%", marginTop: 32 }}>
+          <TacticalButton
+            title="TEKRAR DENE"
+            onPress={runLocationGateCheck}
+            loading={gateRetrying}
+            icon={<RefreshCw size={18} color="#E0E0E0" />}
+          />
+        </View>
+        <View style={{ width: "100%", marginTop: 12 }}>
+          <TacticalButton
+            title="GERİ DÖN"
+            variant="ghost"
+            onPress={() => router.back()}
+            icon={<ArrowLeft size={18} color="#A0A0A0" />}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ═══════════ TAMAMEN KİLİTLİ — SALON DIŞI ═══════════
+  if (locationGate === "blocked") {
+    return (
+      <SafeAreaView style={[s.centered, { paddingHorizontal: 32 }]} edges={['top', 'left', 'right']}>
+        <View style={{
+          width: 90, height: 90, borderRadius: 45,
+          backgroundColor: "rgba(139,0,0,0.15)", borderWidth: 2.5, borderColor: "rgba(139,0,0,0.5)",
+          alignItems: "center", justifyContent: "center", marginBottom: 24,
+        }}>
+          <MapPinOff size={44} color="#8B0000" />
+        </View>
+        <Text style={[s.permTitle, { color: "#C0392B", fontSize: 20 }]}>ERİŞİM ENGELLENDİ</Text>
+
+        {/* Info box */}
+        <View style={{
+          marginTop: 24, width: "100%",
+          backgroundColor: "rgba(139,0,0,0.08)",
+          borderWidth: 1, borderColor: "rgba(139,0,0,0.25)",
+          borderRadius: 6, padding: 16,
+        }}>
+          <Text style={{ color: "#666", fontSize: 11, textAlign: "center", lineHeight: 16 }}>
+            QR tarama işlemi yalnızca spor salonunun{"\n"}
+            {GYM_CONFIG.radiusMeters} metre yarıçapı içinde gerçekleştirilebilir.
+          </Text>
+        </View>
+
+        <View style={{ width: "100%", marginTop: 28 }}>
+          <TacticalButton
+            title="TEKRAR DENE"
+            onPress={runLocationGateCheck}
+            loading={gateRetrying}
+            icon={<RefreshCw size={18} color="#E0E0E0" />}
+          />
+        </View>
+        <View style={{ width: "100%", marginTop: 12 }}>
+          <TacticalButton
+            title="GERİ DÖN"
+            variant="ghost"
+            onPress={() => router.back()}
+            icon={<ArrowLeft size={18} color="#A0A0A0" />}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!permission) {
     return (
       <SafeAreaView style={s.centered} edges={['top', 'left', 'right']}>
@@ -637,7 +781,7 @@ export default function ScanScreen() {
             borderColor: getGpsStatusColor(),
             backgroundColor:
               gpsPhase === "idle"
-                ? "rgba(50,50,50,0.4)"
+                ? "rgba(75,83,32,0.15)"
                 : gpsPhase === "verified"
                 ? "rgba(75,83,32,0.15)"
                 : gpsPhase === "out_of_zone" ||
@@ -651,9 +795,9 @@ export default function ScanScreen() {
         <View style={s.gpsBarLeft}>
           <Animated.View style={{ opacity: isGpsActive ? gpsPulse : 1 }}>
             {gpsPhase === "idle" ? (
-              <MapPin size={14} color="#555" />
+              <MapPin size={14} color="#4B5320" />
             ) : gpsPhase === "verified" ? (
-              <Crosshair size={14} color="#4B5320" />
+              <MapPin size={14} color="#4B5320" />
             ) : gpsPhase === "out_of_zone" ||
               gpsPhase === "denied" ||
               gpsPhase === "failed" ? (
@@ -665,7 +809,7 @@ export default function ScanScreen() {
 
           <Text style={[s.gpsBarText, { color: getGpsStatusColor() }]}>
             {gpsPhase === "idle"
-              ? "KONUM DOĞRULAMASI: BEKLEMEDE"
+              ? "KONUM UYGUN, QR BEKLENİYOR"
               : getGpsStatusText()}
           </Text>
         </View>
@@ -677,12 +821,6 @@ export default function ScanScreen() {
           </View>
         )}
 
-        {/* Dev bypass indicator */}
-        {GYM_CONFIG.devBypass && gpsPhase === "idle" && (
-          <View style={s.devBadge}>
-            <Text style={s.devBadgeText}>DEV</Text>
-          </View>
-        )}
       </View>
 
       {/* ═══ Info Banner ═══ */}
@@ -711,14 +849,6 @@ export default function ScanScreen() {
 
               {/* Result icon or GPS loading */}
               {renderResultIcon()}
-              {isGpsActive && !scanResult && (
-                <View style={s.gpsLoadingWrap}>
-                  <Animated.View style={{ opacity: gpsPulse }}>
-                    <Crosshair size={48} color="#B8860B" />
-                  </Animated.View>
-                  <Text style={s.gpsLoadingText}>{getGpsStatusText()}</Text>
-                </View>
-              )}
             </View>
 
             {/* Bottom instruction */}
@@ -830,20 +960,7 @@ const s = StyleSheet.create({
     letterSpacing: 1,
     fontWeight: "600",
   },
-  devBadge: {
-    backgroundColor: "rgba(184,134,11,0.2)",
-    borderWidth: 1,
-    borderColor: "rgba(184,134,11,0.4)",
-    borderRadius: 2,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  devBadgeText: {
-    color: "#B8860B",
-    fontSize: 9,
-    letterSpacing: 2,
-    fontWeight: "800",
-  },
+
 
   // Info Banner
   infoBanner: {

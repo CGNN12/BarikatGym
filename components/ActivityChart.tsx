@@ -49,7 +49,7 @@ export default function ActivityChart() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>(7);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   // ─── Veri Çekme ───
   const fetchActivityData = useCallback(async () => {

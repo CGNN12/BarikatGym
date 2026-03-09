@@ -7,16 +7,19 @@ import * as Location from "expo-location";
 // ═══════════════════════════════════════════════════════════
 
 export const GYM_CONFIG = {
-  /** Gym latitude */
-  latitude: 39.919417235925124,
-  /** Gym longitude */
-  longitude: 32.82345489962185,
-  /** Maximum allowed distance in meters */
+  // TODO: CANLIYA ÇIKARKEN BURAYI TEKRAR GERÇEK SPOR SALONU KOORDİNATLARIYLA DEĞİŞTİR
+  /** Gym latitude (Geçici Test: Ev) */
+  latitude: 39.92229029881965,
+  /** Gym longitude (Geçici Test: Ev) */
+  longitude: 32.821464775616256,
+  /**
+   * Maximum allowed distance in meters.
+   * UAT STRICT MODE: 100m — merkezden itibaren kesin sınır.
+   * Bu değer asla bypass edilmez.
+   */
   radiusMeters: 100,
   /** GPS acquisition timeout in milliseconds */
   gpsTimeoutMs: 15000,
-  /** Developer mode: set to true to bypass location check during testing */
-  devBypass: __DEV__, // Automatically true in dev, false in production
 };
 
 // ═══════════════════════════════════════════════════════════

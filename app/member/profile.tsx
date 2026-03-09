@@ -30,6 +30,7 @@ import {
   ChevronDown,
   AlertCircle,
   Camera,
+  Trash2,
 } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { decode } from "base64-arraybuffer";
@@ -72,6 +73,7 @@ export default function ProfileScreen() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [removeAvatar, setRemoveAvatar] = useState(false);
 
   // ═══════════ HISTORY FILTER STATE ═══════════
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null); // null = All
@@ -155,6 +157,7 @@ export default function ProfileScreen() {
     setEditEmail("");
     setAvatarPreview(null);
     setAvatarBase64(null);
+    setRemoveAvatar(false);
     setIsEditModalVisible(true);
   };
 
@@ -183,6 +186,7 @@ export default function ProfileScreen() {
     if (!result.canceled && result.assets.length > 0) {
       setAvatarPreview(result.assets[0].uri);
       setAvatarBase64(result.assets[0].base64 ?? null);
+      setRemoveAvatar(false);
     }
   };
 
@@ -256,11 +260,14 @@ export default function ProfileScreen() {
       if (error) throw error;
 
       if (data.user) {
-        const profileUpdate: Record<string, string> = { full_name: editName.trim() };
+        const profileUpdate: Record<string, string | null> = { full_name: editName.trim() };
         if (newAvatarUrl) {
           profileUpdate.avatar_url = newAvatarUrl;
+        } else if (removeAvatar) {
+          profileUpdate.avatar_url = null;
         }
         await supabase.from("profiles").update(profileUpdate).eq("id", data.user.id);
+        // @ts-ignore
         setProfile(prev => prev ? { ...prev, ...profileUpdate } : prev);
       }
 
@@ -355,7 +362,7 @@ export default function ProfileScreen() {
 
   // ═══════════ AVATAR DISPLAY HELPERS ═══════════
 
-  const currentAvatarUrl = avatarPreview || profile?.avatar_url || null;
+  const currentAvatarUrl = removeAvatar ? null : (avatarPreview || profile?.avatar_url || null);
   const initials = getInitials(profile?.full_name || "");
 
   // Status-based colors
@@ -747,7 +754,7 @@ export default function ProfileScreen() {
             </View>
 
             {/* ═══ AVATAR SECTION ═══ */}
-            <View style={s.avatarSection}>
+            <View style={[s.avatarSection, { position: "relative" }]}>
               <TouchableOpacity
                 onPress={pickAvatar}
                 activeOpacity={0.7}
@@ -775,9 +782,25 @@ export default function ProfileScreen() {
                   <View style={s.cameraBadge}>
                     <Camera size={14} color="#E0E0E0" />
                   </View>
+
+                  {/* Trash Badge for Removal */}
+                  {currentAvatarUrl && (
+                    <TouchableOpacity 
+                      onPress={(e) => {
+                        e.stopPropagation(); // Avoid picking new photo when deleting
+                        setAvatarPreview(null);
+                        setAvatarBase64(null);
+                        setRemoveAvatar(true);
+                      }} 
+                      activeOpacity={0.7}
+                      disabled={editLoading}
+                      style={s.trashBadge}
+                    >
+                      <Trash2 size={14} color="#FFF" />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </TouchableOpacity>
-              <Text style={s.avatarHint}>FOTOĞRAF YÜKLE</Text>
             </View>
 
             {/* Separator */}
@@ -1138,6 +1161,24 @@ const s = StyleSheet.create({
     height: 34,
     borderRadius: 17,
     backgroundColor: "#3D4520",
+    borderWidth: 2,
+    borderColor: "#1A1A1A",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+  },
+  trashBadge: {
+    position: "absolute",
+    bottom: 2,
+    left: 2,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#8B0000",
     borderWidth: 2,
     borderColor: "#1A1A1A",
     alignItems: "center",

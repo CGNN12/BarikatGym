@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -28,9 +28,6 @@ export default function DashboardScreen() {
   const [activeCount, setActiveCount] = useState(0);
   const [currentSession, setCurrentSession] = useState<GymLog | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [membershipDaysLeft, setMembershipDaysLeft] = useState(0);
-  const [membershipStatus, setMembershipStatus] =
-    useState<MembershipStatus>("active");
 
   // ═══════════ DATA FETCHERS ═══════════
 
@@ -44,25 +41,6 @@ export default function DashboardScreen() {
 
     if (data) {
       setProfile(data);
-
-      if (data.membership_end) {
-        const endDate = new Date(data.membership_end);
-        const today = new Date();
-        const diffTime = endDate.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        setMembershipDaysLeft(diffDays);
-
-        if (diffDays <= 0) {
-          setMembershipStatus("expired");
-        } else if (diffDays <= MEMBERSHIP_WARNING_DAYS) {
-          setMembershipStatus("expiring_soon");
-        } else {
-          setMembershipStatus("active");
-        }
-      } else {
-        setMembershipDaysLeft(0);
-        setMembershipStatus("active");
-      }
     }
   }, [user]);
 
@@ -154,38 +132,22 @@ export default function DashboardScreen() {
 
   // ═══════════ REALTIME: PROFILE STATUS SUBSCRIPTION ═══════════
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
-    const profileChannel = supabase
-      .channel("realtime_profile_status")
+    const profileSubscription = supabase
+      .channel('index_realtime_profile')
       .on(
-        "postgres_changes",
+        'postgres_changes',
         {
           event: "UPDATE",
           schema: "public",
           table: "profiles",
-          filter: "id=eq." + user.id,
+          filter: `id=eq.${user.id}`,
         },
-        (payload: { new: Record<string, unknown> }) => {
-          // Admin changed user status in real-time  
-          const updated = payload.new as Partial<Profile>;
-          setProfile((prev) => (prev ? { ...prev, ...updated } : prev));
-
-          // Also recalculate membership status if membership_end changed
-          if (updated.membership_end) {
-            const endDate = new Date(updated.membership_end);
-            const today = new Date();
-            const diffTime = endDate.getTime() - today.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            setMembershipDaysLeft(diffDays);
-            if (diffDays <= 0) {
-              setMembershipStatus("expired");
-            } else if (diffDays <= MEMBERSHIP_WARNING_DAYS) {
-              setMembershipStatus("expiring_soon");
-            } else {
-              setMembershipStatus("active");
-            }
-          }
+        (payload) => {
+          console.log('Realtime güncellemesi geldi [INDEX]:', payload.new);
+          // Orijinal obje mantığını koru ki Derived State (useMemo) tetiklenebilsin
+          setProfile(prev => prev ? { ...prev, ...(payload.new as Profile) } : (payload.new as Profile));
         }
       )
       .subscribe((status, err) => {
@@ -195,9 +157,9 @@ export default function DashboardScreen() {
       });
 
     return () => {
-      supabase.removeChannel(profileChannel);
+      supabase.removeChannel(profileSubscription);
     };
-  }, [user]);
+  }, [user?.id]);
 
   // ═══════════ HELPERS ═══════════
 
@@ -217,9 +179,38 @@ export default function DashboardScreen() {
     });
   };
 
-  const isExpired = membershipStatus === "expired";
-  const isExpiring = membershipStatus === "expiring_soon";
-  const warningColor = isExpired ? "#8B0000" : "#B8860B";
+  // ═══════════ ZAMAN KÖRLÜĞÜ GİDERME VERİLERİ (Derived State) ═══════════
+  const derivedData = useMemo(() => {
+    let status = profile?.status || "inactive";
+    let daysLeft = 0;
+    let isExpired = false;
+    let isExpiring = false;
+
+    if (profile?.membership_end) {
+      const endDate = new Date(profile.membership_end);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Sadece gün analizi yapmak için saati sıfırla
+      const endDateStartOfDay = new Date(endDate);
+      endDateStartOfDay.setHours(0, 0, 0, 0);
+
+      const diffTime = endDateStartOfDay.getTime() - today.getTime();
+      daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (daysLeft <= 0) {
+        isExpired = true;
+        // Eğer veritabanı "active" diyorsa ancak tarih dolmuşsa, GÖRÜNÜMÜ EZ:
+        if (status === "active") status = "expired";
+      } else if (daysLeft <= MEMBERSHIP_WARNING_DAYS && status === "active") {
+        isExpiring = true;
+      }
+    }
+
+    const warningColor = isExpired ? "#8B0000" : "#B8860B";
+
+    return { status, daysLeft, isExpired, isExpiring, warningColor };
+  }, [profile]);
+
+  const { status, daysLeft, isExpired, isExpiring, warningColor } = derivedData;
 
 
 
@@ -257,32 +248,32 @@ export default function DashboardScreen() {
           {profile && (
             <View style={[
               s.statusBadge,
-              profile.status === "active" ? s.statusBadgeActive :
-              profile.status === "frozen" ? s.statusBadgeFrozen :
-              profile.status === "inactive" || profile.status === "pending" ? s.statusBadgeInactive :
+              status === "active" ? s.statusBadgeActive :
+              status === "frozen" ? s.statusBadgeFrozen :
+              status === "inactive" || status === "pending" ? s.statusBadgeInactive :
               s.statusBadgeExpired,
             ]}>
               <View style={[
                 s.statusBadgeDot,
                 { backgroundColor:
-                  profile.status === "active" ? "#5C6B2A" :
-                  profile.status === "frozen" ? "#5DADE2" :
-                  profile.status === "inactive" || profile.status === "pending" ? "#808080" :
+                  status === "active" ? "#5C6B2A" :
+                  status === "frozen" ? "#5DADE2" :
+                  status === "inactive" || status === "pending" ? "#808080" :
                   "#C0392B"
                 },
               ]} />
               <Text style={[
                 s.statusBadgeLabel,
                 { color:
-                  profile.status === "active" ? "#5C6B2A" :
-                  profile.status === "frozen" ? "#5DADE2" :
-                  profile.status === "inactive" || profile.status === "pending" ? "#808080" :
+                  status === "active" ? "#5C6B2A" :
+                  status === "frozen" ? "#5DADE2" :
+                  status === "inactive" || status === "pending" ? "#808080" :
                   "#C0392B"
                 },
               ]}>
-                {profile.status === "active" ? "AKTİF" :
-                 profile.status === "frozen" ? "DONDURULMUŞ" :
-                 profile.status === "inactive" || profile.status === "pending" ? "ONAY BEKLİYOR" :
+                {status === "active" ? "AKTİF" :
+                 status === "frozen" ? "DONDURULMUŞ" :
+                 status === "inactive" || status === "pending" ? "ONAY BEKLİYOR" :
                  "SÜRESİ DOLMUŞ"}
               </Text>
             </View>
@@ -323,7 +314,7 @@ export default function DashboardScreen() {
                 <Text style={s.warningBody}>
                   {isExpired
                     ? "Üyeliğiniz sona ermiştir. Lütfen yöneticiyle iletişime geçin."
-                    : `Üyeliğinizin bitmesine ${membershipDaysLeft} gün kaldı.`}
+                    : `Üyeliğinizin bitmesine ${daysLeft} gün kaldı.`}
                 </Text>
               </View>
             </View>
@@ -371,24 +362,24 @@ export default function DashboardScreen() {
                   s.statValue,
                   {
                     color:
-                      membershipDaysLeft <= 0
+                      daysLeft <= 0
                         ? "#8B0000"
-                        : membershipDaysLeft <= MEMBERSHIP_WARNING_DAYS
+                        : daysLeft <= MEMBERSHIP_WARNING_DAYS
                         ? "#B8860B"
                         : "#E0E0E0",
                   },
                 ]}
               >
                 {profile?.membership_end
-                  ? membershipDaysLeft > 0
-                    ? `${membershipDaysLeft}`
+                  ? daysLeft > 0
+                    ? `${daysLeft}`
                     : "0"
                   : "—"}
               </Text>
               <Text style={s.statSub}>
                 {!profile?.membership_end
                   ? "TARİH GİRİLMEDİ"
-                  : membershipDaysLeft > 0
+                  : daysLeft > 0
                   ? "GÜN KALDI"
                   : "SÜRESİ DOLDU"}
               </Text>
