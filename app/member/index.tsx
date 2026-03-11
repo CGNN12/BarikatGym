@@ -19,8 +19,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import type { Profile, GymLog, MembershipStatus } from "@/lib/types";
 import OccupancyDisplay from "@/components/OccupancyDisplay";
-
 import ActivityChart from "@/components/ActivityChart";
+import { calculateMembershipStatus } from "@/utils/dateHelpers";
 
 export default function DashboardScreen() {
   const { user } = useAuth();
@@ -179,31 +179,13 @@ export default function DashboardScreen() {
     });
   };
 
-  // ═══════════ ZAMAN KÖRLÜĞÜ GİDERME VERİLERİ (Derived State) ═══════════
   const derivedData = useMemo(() => {
-    let status = profile?.status || "inactive";
-    let daysLeft = 0;
-    let isExpired = false;
-    let isExpiring = false;
+    const calculated = calculateMembershipStatus(
+      profile?.membership_end,
+      profile?.status || "inactive"
+    );
 
-    if (profile?.membership_end) {
-      const endDate = new Date(profile.membership_end);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Sadece gün analizi yapmak için saati sıfırla
-      const endDateStartOfDay = new Date(endDate);
-      endDateStartOfDay.setHours(0, 0, 0, 0);
-
-      const diffTime = endDateStartOfDay.getTime() - today.getTime();
-      daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      if (daysLeft <= 0) {
-        isExpired = true;
-        // Eğer veritabanı "active" diyorsa ancak tarih dolmuşsa, GÖRÜNÜMÜ EZ:
-        if (status === "active") status = "expired";
-      } else if (daysLeft <= MEMBERSHIP_WARNING_DAYS && status === "active") {
-        isExpiring = true;
-      }
-    }
+    const { status, daysLeft, isExpired, isExpiring } = calculated;
 
     const warningColor = isExpired ? "#8B0000" : "#B8860B";
 

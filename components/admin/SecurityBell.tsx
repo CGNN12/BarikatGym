@@ -10,6 +10,8 @@ import {
   Animated,
   Easing,
   ActivityIndicator,
+  TouchableWithoutFeedback,
+  Alert,
 } from "react-native";
 import {
   Bell,
@@ -20,6 +22,7 @@ import {
   CheckCheck,
   Clock,
   UserX,
+  Trash2,
 } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
 
@@ -267,6 +270,80 @@ export default function SecurityBell() {
     }
   }, []);
 
+  // ─── Clear ALL notifications ───
+  const clearAllNotifications = useCallback(async () => {
+    if (notifications.length === 0) return;
+    const ids = notifications.map((n) => n.id);
+
+    try {
+      // 1. Supabase'den kalıcı olarak sil (ve dönen sonucu al)
+      const { data, error } = await supabase
+        .from("notifications")
+        .delete()
+        .in("id", ids)
+        .select();
+
+      // 2. Eğer açık bir veritabanı hatası varsa göster
+      if (error) {
+        console.error("Supabase Silme Hatası:", error);
+        Alert.alert(
+          "Hata",
+          "Bildirimler veritabanından silinemedi! (Hata mesajı: " + error.message + ")"
+        );
+        return; // İşlemi iptal et
+      }
+
+      // 2.5 Eğer hata yok ama hiçbir veri silinmemişse (ör: RLS engeli sessizce oluşmuşsa)
+      if (!data || data.length === 0) {
+        Alert.alert(
+          "RLS Hatası (Önemli)",
+          "Silme işlemi Supabase'e ulaştı ancak hiçbir kayıt silinemedi. Lütfen Supabase panelinden 'notifications' tablosu için DELETE (RLS) kurallarını kontrol edin."
+        );
+        return;
+      }
+
+      // 3. Supabase'den başarıyla silindiyse ekrandan da temizle
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (err) {
+      console.error("Beklenmeyen Hata:", err);
+      Alert.alert("Hata", "Beklenmeyen bir sorun oluştu.");
+    }
+  }, [notifications]);
+
+  // ─── Single Delete ───
+  const deleteNotification = useCallback(
+    async (notifId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from("notifications")
+          .delete()
+          .eq("id", notifId)
+          .select();
+
+        if (error) {
+          Alert.alert("Hata", "Bildirim silinemedi! " + error.message);
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          Alert.alert("RLS Hatası", "Bildirimi silme yetkiniz yok (RLS kuralı engelledi).");
+          return;
+        }
+
+        // Başarılıysa state'den temizle
+        setNotifications((prev) => prev.filter((n) => n.id !== notifId));
+        setUnreadCount((prev) => {
+          const isUnread = notifications.find((n) => n.id === notifId && !n.is_read);
+          return isUnread ? Math.max(0, prev - 1) : prev;
+        });
+      } catch (e) {
+        console.error("❌ [BELL] Single delete error:", e);
+      }
+    },
+    [notifications]
+  );
+
   const unreadNotifications = notifications.filter((n) => !n.is_read);
   const readNotifications = notifications.filter((n) => n.is_read);
 
@@ -292,39 +369,42 @@ export default function SecurityBell() {
         animationType="fade"
         onRequestClose={() => setIsModalVisible(false)}
       >
-        <Pressable
-          style={styles.overlay}
-          onPress={() => setIsModalVisible(false)}
-        >
-          <Pressable style={styles.modalBox} onPress={() => {}}>
+        <View style={styles.overlay}>
+          {/* Arka Plan Dokunma Kapatıcısı (Scroll'u engellememesi için Pressable absolute olarak kullanıldı) */}
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setIsModalVisible(false)}
+          />
+          <View style={styles.modalBox}>
             {/* Header */}
-            <View style={styles.modalHeader}>
-              <View style={styles.modalHeaderLeft}>
-                <ShieldAlert size={18} color="#E74C3C" />
-                <Text style={styles.modalTitle}>GÜVENLİK İHLALİ RAPORU</Text>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalHeaderLeft}>
+                  <ShieldAlert size={18} color="#E74C3C" />
+                  <Text style={styles.modalTitle}>GÜVENLİK İHLALİ RAPORU</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setIsModalVisible(false)}
+                  style={styles.closeBtn}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <X size={16} color="#666" />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                onPress={() => setIsModalVisible(false)}
-                style={styles.closeBtn}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <X size={16} color="#666" />
-              </TouchableOpacity>
-            </View>
 
-
-            {/* Separator */}
-            <View style={styles.separator}>
-              <View style={styles.sepLine} />
-              <AlertTriangle size={12} color="#E74C3C" />
-              <View style={styles.sepLine} />
-            </View>
+              {/* Separator */}
+              <View style={styles.separator}>
+                <View style={styles.sepLine} />
+                <AlertTriangle size={12} color="#E74C3C" />
+                <View style={styles.sepLine} />
+              </View>
 
             {/* Notification List */}
-            <ScrollView
-              style={styles.listScroll}
-              showsVerticalScrollIndicator={false}
-            >
+            <View style={{ maxHeight: 400, overflow: "hidden" }}>
+              <ScrollView
+                style={styles.listScroll}
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled={true}
+              >
               {loading ? (
                 <View style={styles.emptyState}>
                   <ActivityIndicator size="small" color="#E74C3C" />
@@ -332,9 +412,9 @@ export default function SecurityBell() {
                 </View>
               ) : notifications.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <ShieldAlert size={28} color="#2A2A2A" />
-                  <Text style={styles.emptySub}>
-                    Kayıtlı güvenlik ihlali bulunmuyor.
+                  <Bell size={36} color="#333" />
+                  <Text style={[styles.emptySub, { marginTop: 4, color: "#666" }]}>
+                    Şu an hiç bildiriminiz yok.
                   </Text>
                 </View>
               ) : (
@@ -376,9 +456,16 @@ export default function SecurityBell() {
                               </View>
                             </View>
                           </View>
-                          <View style={styles.notifAction}>
-                            <Eye size={14} color="#555" />
-                          </View>
+                          <TouchableOpacity 
+                            style={styles.notifAction}
+                            activeOpacity={0.7}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              deleteNotification(notif.id);
+                            }}
+                          >
+                            <Trash2 size={14} color="#666" />
+                          </TouchableOpacity>
                         </TouchableOpacity>
                       ))}
                     </>
@@ -419,7 +506,14 @@ export default function SecurityBell() {
                               </View>
                             </View>
                           </View>
-                          <CheckCheck size={14} color="#4B5320" />
+                          <TouchableOpacity 
+                            style={styles.notifActionRead}
+                            activeOpacity={0.7}
+                            onPress={() => deleteNotification(notif.id)}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          >
+                            <Trash2 size={14} color="#555" />
+                          </TouchableOpacity>
                         </View>
                       ))}
                     </>
@@ -427,17 +521,18 @@ export default function SecurityBell() {
                 </>
               )}
             </ScrollView>
+            </View>
 
             {/* Actions */}
             <View style={styles.actions}>
-              {unreadCount > 0 && (
+              {notifications.length > 0 && (
                 <TouchableOpacity
-                  onPress={markAllAsRead}
-                  style={styles.markAllBtn}
+                  onPress={clearAllNotifications}
+                  style={styles.clearAllBtn}
                   activeOpacity={0.7}
                 >
-                  <CheckCheck size={14} color="#4B5320" />
-                  <Text style={styles.markAllText}>TÜMÜNÜ OKUNDU İŞARETLE</Text>
+                  <Trash2 size={14} color="#E74C3C" />
+                  <Text style={styles.clearAllText}>TÜMÜNÜ TEMİZLE</Text>
                 </TouchableOpacity>
               )}
 
@@ -456,8 +551,8 @@ export default function SecurityBell() {
               <Text style={styles.footerText}>BARİKAT • GÜVENLİK MODÜLÜ</Text>
               <View style={styles.sepLine} />
             </View>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </>
   );
@@ -601,7 +696,6 @@ const styles = StyleSheet.create({
 
   // ── NOTIFICATION CARDS ──
   listScroll: {
-    maxHeight: 360,
     marginBottom: 16,
   },
   notifCardUnread: {
@@ -697,6 +791,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginLeft: 8,
   },
+  notifActionRead: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: "rgba(51, 51, 51, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+  },
 
   // ── EMPTY STATE ──
   emptyState: {
@@ -720,19 +823,19 @@ const styles = StyleSheet.create({
   actions: {
     gap: 8,
   },
-  markAllBtn: {
+  clearAllBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
     paddingVertical: 12,
     borderRadius: 4,
-    backgroundColor: "rgba(75, 83, 32, 0.12)",
+    backgroundColor: "rgba(231, 76, 60, 0.08)",
     borderWidth: 1,
-    borderColor: "rgba(75, 83, 32, 0.4)",
+    borderColor: "rgba(231, 76, 60, 0.3)",
   },
-  markAllText: {
-    color: "#4B5320",
+  clearAllText: {
+    color: "#E74C3C",
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 2,
@@ -740,11 +843,15 @@ const styles = StyleSheet.create({
   dismissBtn: {
     alignItems: "center",
     paddingVertical: 10,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#333",
   },
   dismissText: {
-    color: "#666",
-    fontSize: 11,
-    fontWeight: "600",
+    color: "#A0A0A0",
+    fontSize: 10,
+    fontWeight: "700",
     letterSpacing: 3,
   },
 

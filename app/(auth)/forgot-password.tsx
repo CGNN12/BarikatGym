@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Mail, ArrowLeft, Send } from "lucide-react-native";
+import { Mail, ArrowLeft, Send, KeyRound, ShieldCheck } from "lucide-react-native";
 import { useAlert } from "@/components/CustomAlert";
 import { supabase } from "@/lib/supabase";
 import TacticalInput from "@/components/TacticalInput";
@@ -12,10 +12,16 @@ import DeerLogo from "@/components/DeerLogo";
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const { showAlert } = useAlert();
+  
+  // States
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleResetPassword = async () => {
+  const handleSendCode = async () => {
     if (!email.trim() || !email.includes("@")) {
       showAlert("HATA", "Lütfen geçerli bir e-posta adresi girin.");
       return;
@@ -26,13 +32,156 @@ export default function ForgotPasswordScreen() {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
       if (error) throw error;
       
-      showAlert("BAŞARILI", "Şifre sıfırlama bağlantısı e-posta adresinize gönderildi. Lütfen gelen kutunuzu (ve gerekiyorsa spam klasörünü) kontrol edin.", [
-        { text: "TAMAM", onPress: () => router.push("/(auth)/login") }
-      ]);
+      showAlert("BAŞARILI", "E-postanıza 8 haneli doğrulama kodu gönderildi.");
+      setStep(2);
     } catch (error: any) {
-      showAlert("HATA", error.message || "Şifre sıfırlama işlemi başarısız oldu.");
+      showAlert("HATA", error.message || "Kod gönderme işlemi başarısız oldu.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp.trim() || otp.trim().length !== 8) {
+      showAlert("HATA", "Lütfen 8 haneli doğrulama kodunu girin.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: otp.trim(),
+        type: 'recovery'
+      });
+      if (error) throw error;
+      
+      setStep(3);
+    } catch (error: any) {
+      showAlert("HATA", error.message || "Doğrulama başarısız. Girdiğiniz kodu kontrol edin.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!password.trim() || password.length < 6) {
+      showAlert("HATA", "Şifre en az 6 karakter olmalıdır.");
+      return;
+    }
+    if (password !== passwordConfirm) {
+      showAlert("HATA", "Şifreler eşleşmiyor.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      
+      await supabase.auth.signOut(); // İşlem bitince oturumu kapat
+      
+      showAlert("BAŞARILI", "Şifreniz başarıyla güncellendi.", [
+        { text: "TAMAM", onPress: () => router.replace("/(auth)/login") }
+      ]);
+    } catch (error: any) {
+      showAlert("HATA", error.message || "Şifre güncelleme başarısız oldu.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderStep = () => {
+    switch (step) {
+      case 1:
+        return (
+          <>
+            <Text style={styles.description}>
+              Barikat Sistemleri'ne kayıtlı e-posta adresinizi girin. Size 8 haneli bir doğrulama kodu göndereceğiz.
+            </Text>
+            <View style={styles.form}>
+              <TacticalInput
+                label="E-Posta"
+                placeholder="sporcu@barikat.com"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                icon={<Mail size={18} color="#555" />}
+              />
+              <View style={styles.buttonWrap}>
+                <TacticalButton
+                  title="KODU GÖNDER"
+                  onPress={handleSendCode}
+                  loading={loading}
+                  icon={<Send size={18} color="#E0E0E0" />}
+                />
+              </View>
+            </View>
+          </>
+        );
+      case 2:
+        return (
+          <>
+            <Text style={styles.description}>
+              E-posta adresinize gönderdiğimiz 8 haneli doğrulama kodunu giriniz.
+            </Text>
+            <View style={styles.form}>
+              <TacticalInput
+                label="Doğrulama Kodu"
+                placeholder="00000000"
+                value={otp}
+                onChangeText={setOtp}
+                keyboardType="number-pad"
+                maxLength={8}
+                icon={<ShieldCheck size={18} color="#555" />}
+              />
+              <View style={styles.buttonWrap}>
+                <TacticalButton
+                  title="DOĞRULA"
+                  onPress={handleVerifyOtp}
+                  loading={loading}
+                  icon={<ShieldCheck size={18} color="#E0E0E0" />}
+                />
+              </View>
+            </View>
+          </>
+        );
+      case 3:
+        return (
+          <>
+            <Text style={styles.description}>
+              Kod doğrulandı! Şimdi yeni şifrenizi belirleyebilirsiniz.
+            </Text>
+            <View style={styles.form}>
+              <TacticalInput
+                label="Yeni Şifre"
+                placeholder="••••••"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                icon={<KeyRound size={18} color="#555" />}
+              />
+              <View style={{ height: 12 }} />
+              <TacticalInput
+                label="Yeni Şifre (Tekrar)"
+                placeholder="••••••"
+                value={passwordConfirm}
+                onChangeText={setPasswordConfirm}
+                secureTextEntry
+                icon={<KeyRound size={18} color="#555" />}
+              />
+              <View style={styles.buttonWrap}>
+                <TacticalButton
+                  title="ŞİFREYİ GÜNCELLE"
+                  onPress={handleUpdatePassword}
+                  loading={loading}
+                  icon={<Send size={18} color="#E0E0E0" />}
+                />
+              </View>
+            </View>
+          </>
+        );
     }
   };
 
@@ -43,9 +192,18 @@ export default function ForgotPasswordScreen() {
           <View style={styles.container}>
             {/* Header / Back Button */}
             <View style={styles.header}>
-              <TouchableOpacity style={styles.backButton} onPress={() => router.replace("/(auth)/login")} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.backButton}
+                activeOpacity={0.7}
+                onPress={async () => {
+                  if (step === 3) {
+                    await supabase.auth.signOut();
+                  }
+                  router.replace("/(auth)/login");
+                }}
+              >
                 <ArrowLeft size={20} color="#E0E0E0" />
-                <Text style={styles.backButtonText}>GİRİŞE DÖN</Text>
+                <Text style={styles.backButtonText}>GİRİŞ EKRANINA DÖN</Text>
               </TouchableOpacity>
             </View>
 
@@ -55,30 +213,9 @@ export default function ForgotPasswordScreen() {
               </View>
 
               <Text style={styles.title}>ŞİFRE SIFIRLAMA</Text>
-              <Text style={styles.description}>
-                Barikat Sistemleri'ne kayıtlı e-posta adresinizi girin. Size şifrenizi sıfırlamanız için güvenli bir bağlantı göndereceğiz.
-              </Text>
+              
+              {renderStep()}
 
-              <View style={styles.form}>
-                <TacticalInput
-                  label="E-Posta"
-                  placeholder="sporcu@barikat.com"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  icon={<Mail size={18} color="#555" />}
-                />
-
-                <View style={styles.buttonWrap}>
-                  <TacticalButton
-                    title="BAĞLANTIYI GÖNDER"
-                    onPress={handleResetPassword}
-                    loading={loading}
-                    icon={<Send size={18} color="#E0E0E0" />}
-                  />
-                </View>
-              </View>
             </View>
           </View>
         </ScrollView>
@@ -88,12 +225,12 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "transparent" }, // Using transparent ensures parent wrapper bg is visible
+  safeArea: { flex: 1, backgroundColor: "transparent" },
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1 },
   container: { flex: 1, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 },
   header: { marginBottom: 12 },
-  backButton: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, width: 140 },
+  backButton: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },
   backButtonText: { color: "#E0E0E0", fontSize: 12, fontWeight: "700", letterSpacing: 2 },
   content: { flex: 1, justifyContent: "center" },
   logoWrap: { alignItems: "center", marginBottom: 24 },

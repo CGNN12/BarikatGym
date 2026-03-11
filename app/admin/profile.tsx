@@ -47,8 +47,14 @@ export default function AdminProfileScreen() {
   // Edit Profile State
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editName, setEditName] = useState("");
-  const [editEmail, setEditEmail] = useState("");
   const [editLoading, setEditLoading] = useState(false);
+
+  // Email Change State
+  const [emailChangeStep, setEmailChangeStep] = useState<0 | 1 | 2 | 3>(0);
+  const [newEmail, setNewEmail] = useState("");
+  const [oldEmailOtp, setOldEmailOtp] = useState("");
+  const [newEmailOtp, setNewEmailOtp] = useState("");
+  const [emailChangeLoading, setEmailChangeLoading] = useState(false);
 
   // ═══════════ AVATAR STATE ═══════════
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -110,18 +116,12 @@ export default function AdminProfileScreen() {
     ]);
   };
 
-  // E-posta format kontrolü
-  const isValidEmail = (email: string) => {
-    if (email.trim().length === 0) return true; // Boş = değiştirmeyecek
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  };
-
-  const emailError = editEmail.trim().length > 0 && !isValidEmail(editEmail);
-  const canSave = editName.trim().length > 0 && !emailError;
-
   const openEditModal = () => {
     setEditName(adminName);
-    setEditEmail("");
+    setEmailChangeStep(0);
+    setNewEmail("");
+    setOldEmailOtp("");
+    setNewEmailOtp("");
     setAvatarPreview(null);
     setAvatarBase64(null);
     setRemoveAvatar(false);
@@ -203,12 +203,6 @@ export default function AdminProfileScreen() {
         return;
       }
 
-      if (editEmail.trim().length > 0 && !isValidEmail(editEmail)) {
-        showAlert("HATA", "Geçersiz e-posta formatı.");
-        setEditLoading(false);
-        return;
-      }
-
       // 1) Avatar yükleme (varsa)
       let newAvatarUrl: string | null = null;
       if (avatarPreview) {
@@ -241,27 +235,79 @@ export default function AdminProfileScreen() {
         }
       }
 
-      // 3) E-posta güncelleme (kullanıcı yeni mail yazdıysa)
-      if (editEmail.trim().length > 0 && editEmail.trim() !== adminEmail) {
-        const { error: emailError } = await supabase.auth.updateUser({ email: editEmail.trim() });
-        if (emailError) throw emailError;
-
-        setIsEditModalVisible(false);
-        setAvatarPreview(null);
-        showAlert(
-          "GÜVENLİK ONAYI GEREKİYOR",
-          "Güvenlik onayı gereklidir!\n\nHem mevcut (eski) e-posta adresinize hem de yeni adresinize onay linkleri gönderildi.\n\nLütfen gelen kutularınızı kontrol edin.",
-          [{ text: "ANLAŞILDI" }]
-        );
-      } else {
-        setIsEditModalVisible(false);
-        setAvatarPreview(null);
-        showAlert("BAŞARILI", "Profil bilgileriniz güncellendi.", [{ text: "TAMAM" }]);
-      }
+      setIsEditModalVisible(false);
+      setAvatarPreview(null);
+      showAlert("BAŞARILI", "Profil bilgileriniz güncellendi.", [{ text: "TAMAM" }]);
     } catch (e: any) {
       showAlert("HATA", e.message || "Güncelleme başarısız.");
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  const handleRequestEmailChange = async () => {
+    if (!newEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail.trim())) {
+      showAlert("HATA", "Geçerli bir e-posta adresi girin.");
+      return;
+    }
+    setEmailChangeLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ email: newEmail.trim() });
+      if (error) throw error;
+      
+      showAlert("BİLGİ", "Mevcut (eski) e-posta adresinize bir güvenlik kodu gönderdik.");
+      setEmailChangeStep(2);
+    } catch (e: any) {
+      showAlert("HATA", e.message || "E-posta güncelleme isteği başarısız oldu.");
+    } finally {
+      setEmailChangeLoading(false);
+    }
+  };
+
+  const handleVerifyOldEmail = async () => {
+    if (!oldEmailOtp.trim() || oldEmailOtp.length !== 6) {
+      showAlert("HATA", "Lütfen 6 haneli kodu girin.");
+      return;
+    }
+    setEmailChangeLoading(true);
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: adminEmail,
+        token: oldEmailOtp.trim(),
+        type: 'email_change'
+      });
+      if (error) throw error;
+      
+      showAlert("BAŞARILI", "Yeni e-posta adresinize gönderilen onay kodunu girin.");
+      setEmailChangeStep(3);
+    } catch (e: any) {
+      showAlert("HATA", e.message || "Doğrulama başarısız. Girdiğiniz kodu kontrol edin.");
+    } finally {
+      setEmailChangeLoading(false);
+    }
+  };
+
+  const handleVerifyNewEmail = async () => {
+    if (!newEmailOtp.trim() || newEmailOtp.length !== 6) {
+      showAlert("HATA", "Lütfen 6 haneli kodu girin.");
+      return;
+    }
+    setEmailChangeLoading(true);
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: newEmail.trim(),
+        token: newEmailOtp.trim(),
+        type: 'email_change'
+      });
+      if (error) throw error;
+      
+      setAdminEmail(newEmail.trim());
+      setEmailChangeStep(0);
+      showAlert("BAŞARILI", "E-posta adresiniz başarıyla güncellendi.");
+    } catch (e: any) {
+      showAlert("HATA", e.message || "Doğrulama başarısız. Girdiğiniz kodu kontrol edin.");
+    } finally {
+      setEmailChangeLoading(false);
     }
   };
 
@@ -467,93 +513,159 @@ export default function AdminProfileScreen() {
             </View>
 
             {/* ═══ AVATAR SECTION ═══ */}
-            <View style={st.avatarSection}>
-              <TouchableOpacity
-                onPress={pickAvatar}
-                activeOpacity={0.7}
-                disabled={editLoading}
-                style={st.avatarTouchable}
-              >
-                {/* Avatar Circle */}
-                <View style={st.avatarOuterRing}>
-                  {avatarUploading ? (
-                    <View style={st.avatarUploadingOverlay}>
-                      <ActivityIndicator size="large" color="#4B5320" />
-                    </View>
-                  ) : currentAvatarUrl ? (
-                    <Image
-                      source={{ uri: currentAvatarUrl }}
-                      style={st.avatarImage}
-                    />
-                  ) : (
-                    <View style={st.avatarPlaceholder}>
-                      <Text style={st.avatarInitials}>{initials}</Text>
-                    </View>
-                  )}
+            {emailChangeStep === 0 && (
+              <View style={st.avatarSection}>
+                <TouchableOpacity
+                  onPress={pickAvatar}
+                  activeOpacity={0.7}
+                  disabled={editLoading}
+                  style={st.avatarTouchable}
+                >
+                  {/* Avatar Circle */}
+                  <View style={st.avatarOuterRing}>
+                    {avatarUploading ? (
+                      <View style={st.avatarUploadingOverlay}>
+                        <ActivityIndicator size="large" color="#4B5320" />
+                      </View>
+                    ) : currentAvatarUrl ? (
+                      <Image
+                        source={{ uri: currentAvatarUrl }}
+                        style={st.avatarImage}
+                      />
+                    ) : (
+                      <View style={st.avatarPlaceholder}>
+                        <Text style={st.avatarInitials}>{initials}</Text>
+                      </View>
+                    )}
 
-                  {/* Camera Badge */}
-                  <View style={st.cameraBadge}>
-                    <Camera size={14} color="#E0E0E0" />
+                    {/* Camera Badge */}
+                    <View style={st.cameraBadge}>
+                      <Camera size={14} color="#E0E0E0" />
+                    </View>
+
+                    {/* Trash Badge for Removal */}
+                    {currentAvatarUrl && (
+                      <TouchableOpacity 
+                        onPress={(e) => {
+                          e.stopPropagation(); // Avoid picking new photo when deleting
+                          setAvatarPreview(null);
+                          setAvatarBase64(null);
+                          setRemoveAvatar(true);
+                        }} 
+                        activeOpacity={0.7}
+                        disabled={editLoading}
+                        style={st.trashBadge}
+                      >
+                        <Trash2 size={14} color="#FFF" />
+                      </TouchableOpacity>
+                    )}
                   </View>
-
-                  {/* Trash Badge for Removal */}
-                  {currentAvatarUrl && (
-                    <TouchableOpacity 
-                      onPress={(e) => {
-                        e.stopPropagation(); // Avoid picking new photo when deleting
-                        setAvatarPreview(null);
-                        setAvatarBase64(null);
-                        setRemoveAvatar(true);
-                      }} 
-                      activeOpacity={0.7}
-                      disabled={editLoading}
-                      style={st.trashBadge}
-                    >
-                      <Trash2 size={14} color="#FFF" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </TouchableOpacity>
-              <Text style={st.avatarHint}>FOTOĞRAF YÜKLE</Text>
-            </View>
+                </TouchableOpacity>
+                <Text style={st.avatarHint}>FOTOĞRAF YÜKLE</Text>
+              </View>
+            )}
 
             {/* Separator */}
-            <View style={st.modalSep}><View style={st.modalSepLine} /><User size={12} color="#4B5320" /><View style={st.modalSepLine} /></View>
+            {emailChangeStep === 0 && (
+              <View style={st.modalSep}><View style={st.modalSepLine} /><User size={12} color="#4B5320" /><View style={st.modalSepLine} /></View>
+            )}
             
             {/* Form Fields */}
-            <View style={{ marginBottom: 16 }}>
-              <TacticalInput
-                label="Ad Soyad"
-                placeholder="Adınız Soyadınız"
-                value={editName}
-                onChangeText={setEditName}
-                icon={<User size={18} color="#555" />}
-              />
-              <TacticalInput
-                label="Yeni E-Posta (İsteğe Bağlı)"
-                placeholder="Değiştirmek istemiyorsanız boş bırakın"
-                value={editEmail}
-                onChangeText={setEditEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                icon={<Mail size={18} color="#555" />}
-              />
-              {emailError && (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, paddingHorizontal: 4 }}>
-                  <AlertCircle size={12} color="#E74C3C" />
-                  <Text style={{ color: "#E74C3C", fontSize: 10, fontWeight: "600", letterSpacing: 1 }}>Geçersiz e-posta formatı</Text>
+            {emailChangeStep === 0 ? (
+              <>
+                <View style={{ marginBottom: 16 }}>
+                  <TacticalInput
+                    label="Ad Soyad"
+                    placeholder="Adınız Soyadınız"
+                    value={editName}
+                    onChangeText={setEditName}
+                    icon={<User size={18} color="#555" />}
+                  />
+                  <View style={{ marginTop: 12 }}>
+                    <TacticalButton
+                      title="E-POSTA DEĞİŞTİR"
+                      onPress={() => setEmailChangeStep(1)}
+                      icon={<Mail size={18} color="#E0E0E0" />}
+                    />
+                  </View>
                 </View>
-              )}
-            </View>
 
-            {/* Save Button */}
-            <TacticalButton
-               title={avatarUploading ? "YÜKLENIYOR..." : "BİLGİLERİ KAYDET"}
-               onPress={handleUpdateProfile}
-               loading={editLoading}
-               disabled={!canSave || avatarUploading}
-               icon={<ShieldCheck size={18} color="#E0E0E0" />}
-            />
+                {/* Save Button */}
+                <TacticalButton
+                  title={avatarUploading ? "YÜKLENİYOR..." : "BİLGİLERİ KAYDET"}
+                  onPress={handleUpdateProfile}
+                  loading={editLoading}
+                  disabled={!editName.trim() || avatarUploading}
+                  icon={<ShieldCheck size={18} color="#E0E0E0" />}
+                />
+              </>
+            ) : emailChangeStep === 1 ? (
+              <View style={{ marginBottom: 16, gap: 12 }}>
+                <Text style={{ color: "#888", fontSize: 13, textAlign: "center", marginBottom: 10 }}>Yeni e-posta adresinizi girin. Güvenlik için önce mevcut adresinize kod gönderilecektir.</Text>
+                <TacticalInput
+                  label="Yeni E-Posta Adresi"
+                  placeholder="yeni@barikat.com"
+                  value={newEmail}
+                  onChangeText={setNewEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  icon={<Mail size={18} color="#555" />}
+                />
+                <TacticalButton
+                  title="GÜNCELLE"
+                  onPress={handleRequestEmailChange}
+                  loading={emailChangeLoading}
+                  icon={<ShieldCheck size={18} color="#E0E0E0" />}
+                />
+                <TouchableOpacity onPress={() => setEmailChangeStep(0)} style={{ marginTop: 8 }} disabled={emailChangeLoading}>
+                  <Text style={{ color: "#E0E0E0", textAlign: "center", fontSize: 11, fontWeight: "700", letterSpacing: 2 }}>İPTAL ET</Text>
+                </TouchableOpacity>
+              </View>
+            ) : emailChangeStep === 2 ? (
+              <View style={{ marginBottom: 16, gap: 12 }}>
+                <Text style={{ color: "#888", fontSize: 13, textAlign: "center", marginBottom: 10 }}>Mevcut e-posta adresinize gönderilen 6 haneli doğrulama kodunu girin.</Text>
+                <TacticalInput
+                  label="Mevcut E-Postaya Gelen Kod"
+                  placeholder="000000"
+                  value={oldEmailOtp}
+                  onChangeText={setOldEmailOtp}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  icon={<ShieldCheck size={18} color="#555" />}
+                />
+                <TacticalButton
+                  title="İLERİ"
+                  onPress={handleVerifyOldEmail}
+                  loading={emailChangeLoading}
+                  icon={<ShieldCheck size={18} color="#E0E0E0" />}
+                />
+                <TouchableOpacity onPress={() => setEmailChangeStep(0)} style={{ marginTop: 8 }} disabled={emailChangeLoading}>
+                  <Text style={{ color: "#E0E0E0", textAlign: "center", fontSize: 11, fontWeight: "700", letterSpacing: 2 }}>İPTAL ET</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ marginBottom: 16, gap: 12 }}>
+                <Text style={{ color: "#888", fontSize: 13, textAlign: "center", marginBottom: 10 }}>Yeni e-posta adresinize ({newEmail}) gönderilen 6 haneli onay kodunu girin.</Text>
+                <TacticalInput
+                  label="Yeni E-Postaya Gelen Kod"
+                  placeholder="000000"
+                  value={newEmailOtp}
+                  onChangeText={setNewEmailOtp}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  icon={<ShieldCheck size={18} color="#555" />}
+                />
+                <TacticalButton
+                  title="ONAYLA"
+                  onPress={handleVerifyNewEmail}
+                  loading={emailChangeLoading}
+                  icon={<ShieldCheck size={18} color="#E0E0E0" />}
+                />
+                <TouchableOpacity onPress={() => setEmailChangeStep(0)} style={{ marginTop: 8 }} disabled={emailChangeLoading}>
+                  <Text style={{ color: "#E0E0E0", textAlign: "center", fontSize: 11, fontWeight: "700", letterSpacing: 2 }}>İPTAL ET</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </Pressable>
         </Pressable>
       </Modal>

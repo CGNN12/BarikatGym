@@ -386,11 +386,16 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     const inAuthGroup = segments[0] === "(auth)";
     const inAdminGroup = segments[0] === "admin";
     const inMemberGroup = segments[0] === "member";
+    const isForgotPassword = segments.join("/").includes("(auth)/forgot-password");
 
     const timeoutId = setTimeout(() => {
       if (!user) {
         if (!inAuthGroup) router.replace("/(auth)/login");
         return;
+      }
+
+      if (isForgotPassword) {
+        return; // Şifre sıfırlama esnasında OTP doğrulanınca otomatik yönlendirmeyi engelle
       }
 
       if (userRole === "admin") {

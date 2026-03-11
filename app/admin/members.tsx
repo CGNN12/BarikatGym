@@ -13,6 +13,7 @@ import SecurityBell from "@/components/admin/SecurityBell";
 import { useAlert } from "@/components/CustomAlert";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
+import { calculateMembershipStatus } from "@/utils/dateHelpers";
 
 type TabKey = "active" | "inactive" | "expired";
 
@@ -23,22 +24,13 @@ function fmtDate(dt: Date | null | undefined): string {
   return `${String(dt.getDate()).padStart(2, "0")}.${String(dt.getMonth() + 1).padStart(2, "0")}.${dt.getFullYear()}`;
 }
 
-function daysLeft(endStr: string): number {
-  const end = new Date(endStr);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+function daysLeft(endStr: string | null | undefined, currentStatus: string | null | undefined): number {
+  return calculateMembershipStatus(endStr, currentStatus || "inactive").daysLeft;
 }
 
 /** Determine effective status considering membership_end date */
 function getEffectiveStatus(m: Profile): "active" | "inactive" | "frozen" | "pending" | "expired" {
-  if (m.status === "frozen") return "frozen";
-  if (m.status === "inactive") return "inactive";
-  if (m.status === "pending") return "pending";
-  if (m.membership_end && new Date(m.membership_end) < (() => { const t = new Date(); t.setHours(0,0,0,0); return t; })()) {
-    return "expired";
-  }
-  return m.status ?? "inactive";
+  return calculateMembershipStatus(m.membership_end, m.status || "inactive").status as any;
 }
 
 const CB = "rgba(26,26,26,0.65)";
@@ -123,35 +115,27 @@ export default function AdminMembersScreen() {
   today.setHours(0, 0, 0, 0);
 
   const activeMembers = useMemo(() =>
-    allMembers.filter(m => {
-      if (m.status === "frozen" || m.status === "pending" || m.status === "inactive") return false;
-      if (!m.membership_end) return false;
-      return new Date(m.membership_end) >= today;
-    }),
+    allMembers.filter(m => getEffectiveStatus(m) === "active"),
     [allMembers]
   );
 
   const inactiveMembers = useMemo(() =>
-    allMembers.filter(m => m.status === "inactive"),
+    allMembers.filter(m => getEffectiveStatus(m) === "inactive"),
     [allMembers]
   );
 
   const pendingMembers = useMemo(() =>
-    allMembers.filter(m => m.status === "pending"),
+    allMembers.filter(m => getEffectiveStatus(m) === "pending"),
     [allMembers]
   );
 
   const frozenMembers = useMemo(() =>
-    allMembers.filter(m => m.status === "frozen"),
+    allMembers.filter(m => getEffectiveStatus(m) === "frozen"),
     [allMembers]
   );
 
   const expiredMembers = useMemo(() =>
-    allMembers.filter(m => {
-      if (m.status === "frozen" || m.status === "pending" || m.status === "inactive") return false;
-      if (!m.membership_end) return false;
-      return new Date(m.membership_end) < today;
-    }),
+    allMembers.filter(m => getEffectiveStatus(m) === "expired"),
     [allMembers]
   );
 
@@ -167,7 +151,7 @@ export default function AdminMembersScreen() {
   const fA = useMemo(() => {
     const q = searchQuery.toLowerCase();
     const list = q ? activeMembers.filter(m => m.full_name.toLowerCase().includes(q)) : activeMembers;
-    return [...list].sort((a, b) => daysLeft(a.membership_end) - daysLeft(b.membership_end));
+    return [...list].sort((a, b) => daysLeft(a.membership_end, a.status) - daysLeft(b.membership_end, b.status));
   }, [searchQuery, activeMembers]);
 
   const fE = useMemo(() => {
@@ -594,7 +578,7 @@ export default function AdminMembersScreen() {
   // ═══════════ RENDERS ═══════════
 
   const renderActiveItem = useCallback(({ item }: { item: Profile }) => {
-    const dl = daysLeft(item.membership_end);
+    const dl = daysLeft(item.membership_end, item.status);
     const barColor = getBarColor(dl);
     return (
       <TouchableOpacity style={st.memberCard} activeOpacity={0.7} onPress={() => openDossier(item)}>
@@ -633,13 +617,15 @@ export default function AdminMembersScreen() {
   ), [openDossier]);
 
   const renderExpiredItem = useCallback(({ item }: { item: Profile }) => {
-    const since = item.membership_end ? Math.abs(daysLeft(item.membership_end)) : 0;
+    // expired member -> daysLeft returns 0, so instead we calculate how many days since expired manually or show a generic message.
+    // to be precise, let's keep it simple.
+    const sinceText = item.membership_end ? `${Math.abs(Math.ceil((new Date().getTime() - new Date(item.membership_end).getTime()) / (1000 * 60 * 60 * 24)))} gün önce` : "Tarih yok";
     return (
       <TouchableOpacity style={st.memberCard} activeOpacity={0.7} onPress={() => openDossier(item)}>
         <MemberAvatar item={item} borderColor="rgba(139,0,0,0.4)" />
         <View style={st.cardInfo}>
           <Text style={[st.memberName, { color: '#999' }]}>{item.full_name}</Text>
-          <Text style={st.memberMeta}>{since} gün önce doldu</Text>
+          <Text style={st.memberMeta}>{sinceText} doldu</Text>
         </View>
         <View style={[st.statusTag, { borderColor: 'rgba(139,0,0,0.3)', backgroundColor: 'rgba(139,0,0,0.08)' }]}><Text style={[st.statusTagText, { color: '#C0392B' }]}>SÜRESİ DOLDU</Text></View>
       </TouchableOpacity>
