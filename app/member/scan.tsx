@@ -15,8 +15,6 @@ import {
   Camera,
   ArrowLeft,
   MapPin,
-  MapPinOff,
-  Crosshair,
   Radio,
   ShieldOff,
   RefreshCw,
@@ -71,11 +69,6 @@ export default function ScanScreen() {
   );
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
 
-  // ─── LOCATION PRE-CHECK (gate) ───
-  const [locationGate, setLocationGate] = useState<"checking" | "allowed" | "blocked" | "error">("checking");
-  const [gateDistance, setGateDistance] = useState<number | null>(null);
-  const [gateRetrying, setGateRetrying] = useState(false);
-
   // ─── GPS Signal Animation ───
   const gpsPulse = useRef(new Animated.Value(0.3)).current;
 
@@ -102,50 +95,19 @@ export default function ScanScreen() {
     return () => animation.stop();
   }, []);
 
-  // ═══════════ LOCATION PRE-CHECK ON MOUNT ═══════════
-  // Kullanıcı 100m dışındaysa QR ekranını tamamen kilitle
-  const runLocationGateCheck = useCallback(async () => {
-    setLocationGate("checking");
-    setGateRetrying(true);
+  // ═══════════ LOCATION PERMISSION CHECK ON MOUNT ═══════════
+  const runLocationCheck = useCallback(async () => {
     try {
-      const hasPermission = await requestLocationPermission();
-      if (!hasPermission) {
-        setLocationGate("error");
-        setGateRetrying(false);
-        return;
-      }
+      await requestLocationPermission();
       setLocationPermitted(true);
-
-      const result = await Promise.race<Awaited<ReturnType<typeof verifyGymProximity>> | "timeout">([
-        verifyGymProximity(),
-        new Promise<"timeout">((resolve) =>
-          setTimeout(() => resolve("timeout"), GYM_CONFIG.gpsTimeoutMs)
-        ),
-      ]);
-
-      if (result === "timeout") {
-        setLocationGate("error");
-        setGateRetrying(false);
-        return;
-      }
-
-      setGateDistance(result.distanceMeters);
-
-      if (result.verified) {
-        setLocationGate("allowed");
-      } else {
-        setLocationGate("blocked");
-      }
     } catch {
-      setLocationGate("error");
-    } finally {
-      setGateRetrying(false);
+      // silent
     }
   }, []);
 
   useEffect(() => {
-    runLocationGateCheck();
-  }, [runLocationGateCheck]);
+    runLocationCheck();
+  }, [runLocationCheck]);
 
   // ═══════════ MEMBERSHIP CHECK ON MOUNT ═══════════
   useEffect(() => {
@@ -253,13 +215,13 @@ export default function ScanScreen() {
       setGpsPhase("idle");
       setGpsAccuracy(null);
 
-      // Re-run location gate check on every focus
-      runLocationGateCheck();
+      // Re-run location check on every focus
+      runLocationCheck();
 
       return () => {
         // Cleanup if needed
       };
-    }, [runLocationGateCheck])
+    }, [runLocationCheck])
   );
 
   // ═══════════ LOCATION VERIFICATION ═══════════
@@ -595,105 +557,6 @@ export default function ScanScreen() {
           Üyeliğiniz şu anda askıya alınmıştır.{"\n"}Lütfen yönetici ile iletişime geçiniz.
         </Text>
         <View style={{ width: "100%", marginTop: 32 }}>
-          <TacticalButton
-            title="GERİ DÖN"
-            variant="ghost"
-            onPress={() => router.back()}
-            icon={<ArrowLeft size={18} color="#A0A0A0" />}
-          />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  // ═══════════ LOCATION GATE — SCREEN BLOCKED ═══════════
-  // Konum kontrolü yapılıyor
-  if (locationGate === "checking") {
-    return (
-      <SafeAreaView style={s.centered} edges={['top', 'left', 'right']}>
-        <Animated.View style={{ opacity: gpsPulse }}>
-          <MapPin size={48} color="#B8860B" />
-        </Animated.View>
-        <Text style={[s.permTitle, { color: "#B8860B", marginTop: 20 }]}>KONUM DOĞRULANIYOR</Text>
-        <Text style={[s.permBody, { marginTop: 8 }]}>
-          GPS sinyali alınıyor ve mesafe hesaplanıyor...
-        </Text>
-      </SafeAreaView>
-    );
-  }
-
-  // Konum hatası (izin reddedildi veya GPS alınamadı)
-  if (locationGate === "error") {
-    return (
-      <SafeAreaView style={[s.centered, { paddingHorizontal: 32 }]} edges={['top', 'left', 'right']}>
-        <View style={{
-          width: 80, height: 80, borderRadius: 40,
-          backgroundColor: "rgba(184,134,11,0.12)", borderWidth: 2, borderColor: "rgba(184,134,11,0.4)",
-          alignItems: "center", justifyContent: "center", marginBottom: 24,
-        }}>
-          <AlertCircle size={40} color="#B8860B" />
-        </View>
-        <Text style={[s.permTitle, { color: "#B8860B" }]}>KONUM ALINAMADI</Text>
-        <Text style={[s.permBody, { marginTop: 12, textAlign: "center", lineHeight: 20 }]}>
-          GPS sinyali alınamadı veya konum izni reddedildi.{"\n"}
-          QR tarama için konum doğrulaması zorunludur.{"\n\n"}
-          Lütfen konum servislerini açın ve tekrar deneyin.
-        </Text>
-        <View style={{ width: "100%", marginTop: 32 }}>
-          <TacticalButton
-            title="TEKRAR DENE"
-            onPress={runLocationGateCheck}
-            loading={gateRetrying}
-            icon={<RefreshCw size={18} color="#E0E0E0" />}
-          />
-        </View>
-        <View style={{ width: "100%", marginTop: 12 }}>
-          <TacticalButton
-            title="GERİ DÖN"
-            variant="ghost"
-            onPress={() => router.back()}
-            icon={<ArrowLeft size={18} color="#A0A0A0" />}
-          />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  // ═══════════ TAMAMEN KİLİTLİ — SALON DIŞI ═══════════
-  if (locationGate === "blocked") {
-    return (
-      <SafeAreaView style={[s.centered, { paddingHorizontal: 32 }]} edges={['top', 'left', 'right']}>
-        <View style={{
-          width: 90, height: 90, borderRadius: 45,
-          backgroundColor: "rgba(139,0,0,0.15)", borderWidth: 2.5, borderColor: "rgba(139,0,0,0.5)",
-          alignItems: "center", justifyContent: "center", marginBottom: 24,
-        }}>
-          <MapPinOff size={44} color="#8B0000" />
-        </View>
-        <Text style={[s.permTitle, { color: "#C0392B", fontSize: 20 }]}>ERİŞİM ENGELLENDİ</Text>
-
-        {/* Info box */}
-        <View style={{
-          marginTop: 24, width: "100%",
-          backgroundColor: "rgba(139,0,0,0.08)",
-          borderWidth: 1, borderColor: "rgba(139,0,0,0.25)",
-          borderRadius: 6, padding: 16,
-        }}>
-          <Text style={{ color: "#666", fontSize: 11, textAlign: "center", lineHeight: 16 }}>
-            QR tarama işlemi yalnızca spor salonunun{"\n"}
-            {GYM_CONFIG.radiusMeters} metre yarıçapı içinde gerçekleştirilebilir.
-          </Text>
-        </View>
-
-        <View style={{ width: "100%", marginTop: 28 }}>
-          <TacticalButton
-            title="TEKRAR DENE"
-            onPress={runLocationGateCheck}
-            loading={gateRetrying}
-            icon={<RefreshCw size={18} color="#E0E0E0" />}
-          />
-        </View>
-        <View style={{ width: "100%", marginTop: 12 }}>
           <TacticalButton
             title="GERİ DÖN"
             variant="ghost"

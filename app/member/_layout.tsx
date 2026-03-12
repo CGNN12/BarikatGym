@@ -7,8 +7,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
 import { startSneakDetection } from "@/utils/sneakDetection";
 import { supabase } from "@/lib/supabase";
-import type { Profile } from "@/lib/types";
+import { Profile } from "@/lib/types";
 import { checkLocationPermission, verifyGymProximity } from "@/lib/location";
+import { calculateMembershipStatus } from "@/utils/dateHelpers";
+import { useAlert } from "@/components/CustomAlert";
 
 const CENTER_SIZE = 64;
 
@@ -57,6 +59,7 @@ const BTN_COLORS = {
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { showAlert } = useAlert();
   const [profile, setProfile] = useState<Partial<Profile> | null>(null);
   const [isWithinZone, setIsWithinZone] = useState<boolean>(true);
 
@@ -108,18 +111,11 @@ export default function TabsLayout() {
   // ═══════════ DERIVED STATUS ═══════════
   const memberStatus = useMemo(() => {
     if (!profile) return "loading";
-    if (profile.status === "inactive" || profile.status === "pending") return "inactive";
-    if (profile.status === "frozen") return "frozen";
-    if (profile.membership_end) {
-      const endDate = new Date(profile.membership_end);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      endDate.setHours(0, 0, 0, 0);
-      if (endDate.getTime() < today.getTime()) {
-        return "expired";
-      }
-    }
-    return "active";
+    const statusObj = calculateMembershipStatus(
+      profile.membership_end,
+      profile.status || "inactive"
+    );
+    return statusObj.status;
   }, [profile]);
 
   // ═══════════ LOKASYON KONTROLÜ (DİNAMİK BUTON İÇİN) ═══════════
@@ -162,8 +158,8 @@ export default function TabsLayout() {
 
   // ═══════════ DİNAMİK RENK HESAPLA ═══════════
   const isActive = memberStatus === "active";
-  const canScan = isActive && isWithinZone;
-  const palette = canScan ? BTN_COLORS.active : BTN_COLORS.passive;
+  const showActive = isActive; // MESAFE ARTIK TASARIMI ETKİLEMİYOR
+  const palette = showActive ? BTN_COLORS.active : BTN_COLORS.passive;
 
   // Memoize dynamic styles so they don't re-create every render
   const dynamicCenterBtn = useMemo(
@@ -288,6 +284,19 @@ export default function TabsLayout() {
               </View>
             </View>
           ),
+        }}
+        listeners={{
+          tabPress: (e) => {
+            // Aktif üye ama salondan uzaksa engelle ve uyar
+            if (isActive && !isWithinZone) {
+              e.preventDefault();
+              showAlert(
+                "MESAFE UYARISI",
+                "Karekod oluşturmak için salona daha yakın olmalısınız.",
+                [{ text: "ANLAŞILDI" }]
+              );
+            }
+          },
         }}
       />
 

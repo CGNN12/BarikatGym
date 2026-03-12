@@ -21,11 +21,16 @@
           "location",
           "fetch",
           "location",
+          "fetch",
+          "location",
+          "fetch",
+          "location",
           "fetch"
         ],
         "NSLocationWhenInUseUsageDescription": "Spor salonuna girişinizi doğrulamak ve QR kod okutmadan içeride olup olmadığınızı tespit etmek için konumunuza ihtiyacımız var.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Arka planda (uygulama kapalıyken bile) spor salonu sınırları içinde ne kadar süre geçirdiğinizi hesaplamak için konum izni gereklidir.",
-        "NSLocationAlwaysUsageDescription": "Spor salonu sınırları içinde olduğunuzu tespit etmek için her zaman konum iznine ihtiyacımız var."
+        "NSLocationAlwaysUsageDescription": "Spor salonu sınırları içinde olduğunuzu tespit etmek için her zaman konum iznine ihtiyacımız var.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -36,20 +41,6 @@
       "edgeToEdgeEnabled": true,
       "package": "com.barikatgym.app",
       "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION",
-        "FOREGROUND_SERVICE",
-        "RECEIVE_BOOT_COMPLETED",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_BACKGROUND_LOCATION",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_LOCATION",
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.WAKE_LOCK",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",

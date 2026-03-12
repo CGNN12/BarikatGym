@@ -18,18 +18,45 @@ export function useAuth() {
   });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setAuthState({
-        user: session?.user ?? null,
-        session,
-        loading: false,
-        initialized: true,
-      });
-    });
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          // Eğer oturum hatası varsa (özellikle Invalid Refresh Token), temizlik yap
+          console.warn("Auth initialization error:", error.message);
+          if (error.message.includes("refresh_token") || error.status === 400) {
+             await supabase.auth.signOut();
+          }
+          
+          setAuthState({
+            user: null,
+            session: null,
+            loading: false,
+            initialized: true,
+          });
+          return;
+        }
+
+        setAuthState({
+          user: session?.user ?? null,
+          session,
+          loading: false,
+          initialized: true,
+        });
+      } catch (err) {
+        console.error("Auth init exception:", err);
+        setAuthState((prev) => ({ ...prev, loading: false, initialized: true }));
+      }
+    };
+
+    initializeAuth();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // console.log("Auth state change:", event);
+      
       setAuthState({
         user: session?.user ?? null,
         session,
