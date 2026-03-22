@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, Image
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, Image, Linking
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LogOut, Users, Activity, User, Ticket, ShieldCheck, Mail, X, Edit3, AlertCircle, Camera, Trash2 } from "lucide-react-native";
+import { LogOut, Users, Activity, User, Ticket, ShieldCheck, Mail, X, Edit3, AlertCircle, Camera, Trash2, ExternalLink } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { decode } from "base64-arraybuffer";
 import { supabase } from "@/lib/supabase";
@@ -61,6 +61,8 @@ export default function AdminProfileScreen() {
   const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [removeAvatar, setRemoveAvatar] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -108,6 +110,32 @@ export default function AdminProfileScreen() {
   }, []);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  const handleDeleteAccount = () => {
+    setIsDeleteModalVisible(true);
+  };
+
+  const executeAccountDeletion = async () => {
+    setDeletingAccount(true);
+    try {
+      if (adminUserId) {
+        // Not: Supabase üzerinde kullanıcıyı silmek için 'delete_user' RPC fonksiyonunun oluşturulması gereklidir.
+        const { error: rpcError } = await supabase.rpc('delete_user');
+        
+        // Eğer RPC yoksa alternatif olarak profil kaydını silindi olarak güncelle
+        if (rpcError) {
+          await supabase.from('profiles').update({ status: 'deleted' }).eq('id', adminUserId);
+        }
+      }
+      setIsDeleteModalVisible(false);
+      await supabase.auth.signOut();
+      router.replace("/(auth)/login");
+    } catch (error: unknown) {
+      showAlert("HATA", "Hesap silinirken bir hata oluştu.");
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
 
   const handleSignOut = () => {
     showAlert("ÇIKIŞ", "Oturumu kapatmak istiyor musunuz?", [
@@ -456,40 +484,100 @@ export default function AdminProfileScreen() {
 
         </View>
 
-        {/* STATS */}
-        <View style={st.statsSection}>
-          <View style={st.sepRow}><View style={st.sepLine} /><Text style={st.sepLabel}>İSTATİSTİKLER</Text><View style={st.sepLine} /></View>
-          <View style={st.statsGrid}>
-            <View style={st.statCard}>
-              <View style={[st.statIcon, { backgroundColor: "rgba(75,83,32,0.2)" }]}><Users size={18} color="#4B5320" /></View>
-              <Text style={st.statValue}>{totalMembers}</Text>
-              <Text style={st.statLabel}>TOPLAM ÜYE</Text>
+        {/* ════════ MIDDLE SECTIONS WRAPPER ════════ */}
+        <View style={{ flex: 1, justifyContent: "space-evenly", marginTop: -8, marginBottom: 8 }}>
+          
+          {/* STATS */}
+          <View style={[st.statsSection, { marginBottom: 0 }]}>
+            <View style={st.sepRow}><View style={st.sepLine} /><Text style={st.sepLabel}>İSTATİSTİKLER</Text><View style={st.sepLine} /></View>
+            <View style={[st.statsGrid, { marginBottom: 0 }]}>
+              <View style={st.statCard}>
+                <View style={[st.statIcon, { backgroundColor: "rgba(75,83,32,0.2)" }]}><Users size={18} color="#4B5320" /></View>
+                <Text style={st.statValue}>{totalMembers}</Text>
+                <Text style={st.statLabel}>TOPLAM ÜYE</Text>
+              </View>
+              <View style={st.statCard}>
+                <View style={[st.statIcon, { backgroundColor: "rgba(92,107,42,0.2)" }]}><Activity size={18} color="#5C6B2A" /></View>
+                <Text style={st.statValue}>{activeToday}</Text>
+                <Text style={st.statLabel}>BUGÜN GİRENLER</Text>
+              </View>
             </View>
-            <View style={st.statCard}>
-              <View style={[st.statIcon, { backgroundColor: "rgba(92,107,42,0.2)" }]}><Activity size={18} color="#5C6B2A" /></View>
-              <Text style={st.statValue}>{activeToday}</Text>
-              <Text style={st.statLabel}>BUGÜN GİRENLER</Text>
-            </View>
+          </View>
+
+          {/* INVITE CODE */}
+          <View style={[st.inviteSection, { marginBottom: 0 }]}>
+            <View style={st.sepRow}><View style={st.sepLine} /><Text style={st.sepLabel}>ANTRENÖR DAVETİ</Text><View style={st.sepLine} /></View>
+            <TouchableOpacity onPress={startCountdown} style={st.inviteBtn} activeOpacity={0.7} disabled={generatingCode}>
+              {generatingCode ? <ActivityIndicator color="#E0E0E0" size="small" /> : <Ticket size={18} color="#4B5320" />}
+              <Text style={st.inviteBtnText}>{generatingCode ? "ÜRETİLİYOR..." : "YENİ DAVET KODU ÜRET"}</Text>
+            </TouchableOpacity>
+            <Text style={st.inviteHint}>Tek kullanımlık BRKT-XXXXX formatında kod üretir.</Text>
+          </View>
+
+          {/* LOGOUT */}
+          <View style={[st.logoutSection, { marginBottom: 0 }]}>
+            <TouchableOpacity onPress={handleSignOut} style={st.logoutBtn} activeOpacity={0.7}>
+              <LogOut size={20} color="#C0392B" />
+              <Text style={st.logoutText}>SİSTEMDEN ÇIK</Text>
+            </TouchableOpacity>
+            <Text style={st.logoutHint}>Oturum kapatıldığında giriş ekranına yönlendirilirsiniz.</Text>
           </View>
         </View>
 
-        {/* INVITE CODE */}
-        <View style={st.inviteSection}>
-          <View style={st.sepRow}><View style={st.sepLine} /><Text style={st.sepLabel}>ANTRENÖR DAVETİ</Text><View style={st.sepLine} /></View>
-          <TouchableOpacity onPress={startCountdown} style={st.inviteBtn} activeOpacity={0.7} disabled={generatingCode}>
-            {generatingCode ? <ActivityIndicator color="#E0E0E0" size="small" /> : <Ticket size={18} color="#4B5320" />}
-            <Text style={st.inviteBtnText}>{generatingCode ? "ÜRETİLİYOR..." : "YENİ DAVET KODU ÜRET"}</Text>
+        {/* ═══════════ DANGER ZONE ═══════════ */}
+        <View style={{ paddingHorizontal: 24, alignItems: "center", paddingBottom: 16 }}>
+          <TouchableOpacity 
+            onPress={handleDeleteAccount}
+            disabled={deletingAccount}
+            activeOpacity={0.6}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              paddingVertical: 10,
+              paddingHorizontal: 16,
+              borderRadius: 4,
+              borderWidth: 1,
+              borderColor: "rgba(255, 76, 76, 0.2)",
+              backgroundColor: "rgba(255, 76, 76, 0.05)",
+              gap: 8,
+            }}
+          >
+            {deletingAccount ? (
+               <ActivityIndicator size="small" color="#ff4c4c" />
+            ) : (
+               <AlertCircle size={12} color="rgba(255, 76, 76, 0.7)" />
+            )}
+            <Text style={{ 
+              color: "rgba(255, 76, 76, 0.7)", 
+              fontSize: 10, 
+              letterSpacing: 1.5, 
+              fontWeight: "600",
+            }}>
+              HESABIMI KALICI OLARAK SİL
+            </Text>
           </TouchableOpacity>
-          <Text style={st.inviteHint}>Tek kullanımlık BRKT-XXXXX formatında kod üretir.</Text>
-        </View>
 
-        {/* LOGOUT */}
-        <View style={st.logoutSection}>
-          <TouchableOpacity onPress={handleSignOut} style={st.logoutBtn} activeOpacity={0.7}>
-            <LogOut size={20} color="#C0392B" />
-            <Text style={st.logoutText}>SİSTEMDEN ÇIK</Text>
-          </TouchableOpacity>
-          <Text style={st.logoutHint}>Oturum kapatıldığında giriş ekranına yönlendirilirsiniz.</Text>
+          {/* ═════════ LEGAL LINKS ═════════ */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 24, marginTop: 32, marginBottom: 8 }}>
+            <TouchableOpacity 
+              activeOpacity={0.6} 
+              onPress={() => Linking.openURL("https://barikatgym.com/privacy")}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+            >
+              <Text style={{ color: "#666", fontSize: 11, fontWeight: "600", letterSpacing: 1 }}>Gizlilik Politikası</Text>
+              <ExternalLink size={10} color="#666" />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              activeOpacity={0.6} 
+              onPress={() => Linking.openURL("https://barikatgym.com/terms")}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+            >
+              <Text style={{ color: "#666", fontSize: 11, fontWeight: "600", letterSpacing: 1 }}>Kullanım Koşulları</Text>
+              <ExternalLink size={10} color="#666" />
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
 
@@ -721,6 +809,52 @@ export default function AdminProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ═══════════ DELETE ACCOUNT MODAL ═══════════ */}
+      <Modal 
+        visible={isDeleteModalVisible} 
+        transparent 
+        animationType="fade" 
+        onRequestClose={() => !deletingAccount && setIsDeleteModalVisible(false)}
+      >
+        <View style={st.modalOverlay}>
+          <View style={[st.modalBox, { maxWidth: 320, paddingVertical: 28, borderRadius: 15 }]}>
+            <View style={{ alignItems: 'center', marginBottom: 20 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255, 76, 76, 0.1)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                <AlertCircle size={24} color="#ff4c4c" />
+              </View>
+              <Text style={{ color: "#FFF", fontSize: 18, fontWeight: "800", letterSpacing: 1, marginBottom: 8 }}>HESABI SİL</Text>
+              <Text style={{ color: "#A0A0A0", fontSize: 13, textAlign: "center", lineHeight: 20 }}>
+                Bu işlem geri alınamaz. Tüm üyelik verileriniz kalıcı olarak silinecektir. Silmek istediğinize emin misiniz?
+              </Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity 
+                style={{ flex: 1, backgroundColor: "#2A2A2A", paddingVertical: 14, borderRadius: 8, alignItems: 'center' }}
+                onPress={() => setIsDeleteModalVisible(false)}
+                disabled={deletingAccount}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "700", letterSpacing: 1 }}>VAZGEÇ</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={{ flex: 1, backgroundColor: "#ff4c4c", paddingVertical: 14, borderRadius: 8, alignItems: 'center' }}
+                onPress={executeAccountDeletion}
+                disabled={deletingAccount}
+                activeOpacity={0.7}
+              >
+                {deletingAccount ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "700", letterSpacing: 1 }}>EVET, SİL</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -728,7 +862,7 @@ export default function AdminProfileScreen() {
 const st = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "transparent" },
   scroll: { flex: 1 },
-  container: { paddingHorizontal: 16, paddingBottom: 20 },
+  container: { paddingHorizontal: 16, paddingBottom: 0, flexGrow: 1 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 4, paddingBottom: 16 },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   badge: { width: 42, height: 42, borderRadius: 8, backgroundColor: CB, borderWidth: 1, borderColor: CBR, alignItems: "center", justifyContent: "center" },

@@ -2,9 +2,10 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Mail, ArrowLeft, Send, KeyRound, ShieldCheck } from "lucide-react-native";
+import { Mail, ArrowLeft, Send, ShieldCheck } from "lucide-react-native";
 import { useAlert } from "@/components/CustomAlert";
 import { supabase } from "@/lib/supabase";
+import { PasswordRecoveryStore } from "@/lib/passwordRecoveryStore";
 import TacticalInput from "@/components/TacticalInput";
 import TacticalButton from "@/components/TacticalButton";
 import DeerLogo from "@/components/DeerLogo";
@@ -14,11 +15,9 @@ export default function ForgotPasswordScreen() {
   const { showAlert } = useAlert();
   
   // States
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [password, setPassword] = useState("");
-  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSendCode = async () => {
@@ -49,44 +48,31 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
+      // ÖNEMLİ: verifyOtp çağrılmadan ÖNCE recovery modunu aktif et!
+      // Bu sayede Supabase otomatik session oluşturduğunda
+      // AuthGuard kullanıcıyı Dashboard'a yönlendirmeyecek.
+      PasswordRecoveryStore.activate();
+
       const { error } = await supabase.auth.verifyOtp({
         email: email.trim(),
         token: otp.trim(),
         type: 'recovery'
       });
-      if (error) throw error;
+      if (error) {
+        // OTP hatası — recovery modu iptal
+        PasswordRecoveryStore.deactivate();
+        throw error;
+      }
       
-      setStep(3);
+      // OTP başarılı — AuthGuard'ın recovery mode ile yeniden render olmasını
+      // beklemek için kısa bir gecikme ekle, ardından yeni ekrana yönlendir
+      setTimeout(() => {
+        setLoading(false);
+        router.replace("/(auth)/update-password");
+      }, 200);
+      return; // finally'deki setLoading(false)'u atla — setTimeout halledecek
     } catch (error: any) {
       showAlert("HATA", error.message || "Doğrulama başarısız. Girdiğiniz kodu kontrol edin.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUpdatePassword = async () => {
-    if (!password.trim() || password.length < 6) {
-      showAlert("HATA", "Şifre en az 6 karakter olmalıdır.");
-      return;
-    }
-    if (password !== passwordConfirm) {
-      showAlert("HATA", "Şifreler eşleşmiyor.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
-      
-      await supabase.auth.signOut(); // İşlem bitince oturumu kapat
-      
-      showAlert("BAŞARILI", "Şifreniz başarıyla güncellendi.", [
-        { text: "TAMAM", onPress: () => router.replace("/(auth)/login") }
-      ]);
-    } catch (error: any) {
-      showAlert("HATA", error.message || "Şifre güncelleme başarısız oldu.");
-    } finally {
       setLoading(false);
     }
   };
@@ -147,41 +133,6 @@ export default function ForgotPasswordScreen() {
             </View>
           </>
         );
-      case 3:
-        return (
-          <>
-            <Text style={styles.description}>
-              Kod doğrulandı! Şimdi yeni şifrenizi belirleyebilirsiniz.
-            </Text>
-            <View style={styles.form}>
-              <TacticalInput
-                label="Yeni Şifre"
-                placeholder="••••••"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                icon={<KeyRound size={18} color="#555" />}
-              />
-              <View style={{ height: 12 }} />
-              <TacticalInput
-                label="Yeni Şifre (Tekrar)"
-                placeholder="••••••"
-                value={passwordConfirm}
-                onChangeText={setPasswordConfirm}
-                secureTextEntry
-                icon={<KeyRound size={18} color="#555" />}
-              />
-              <View style={styles.buttonWrap}>
-                <TacticalButton
-                  title="ŞİFREYİ GÜNCELLE"
-                  onPress={handleUpdatePassword}
-                  loading={loading}
-                  icon={<Send size={18} color="#E0E0E0" />}
-                />
-              </View>
-            </View>
-          </>
-        );
     }
   };
 
@@ -195,10 +146,8 @@ export default function ForgotPasswordScreen() {
               <TouchableOpacity
                 style={styles.backButton}
                 activeOpacity={0.7}
-                onPress={async () => {
-                  if (step === 3) {
-                    await supabase.auth.signOut();
-                  }
+                onPress={() => {
+                  PasswordRecoveryStore.deactivate();
                   router.replace("/(auth)/login");
                 }}
               >

@@ -11,9 +11,10 @@ import {
   AppState,
   type AppStateStatus,
   TouchableOpacity,
-  Platform,
   Animated,
   Easing,
+  Alert,
+  Platform,
 } from "react-native";
 import {
   useFonts,
@@ -30,6 +31,9 @@ import * as Linking from "expo-linking";
 import { useAuth } from "@/hooks/useAuth";
 import { AlertProvider } from "@/components/CustomAlert";
 import { supabase } from "@/lib/supabase";
+import { PasswordRecoveryStore } from "@/lib/passwordRecoveryStore";
+import NetInfo from "@react-native-community/netinfo";
+import { WifiOff } from "lucide-react-native";
 
 // Keep splash screen visible while loading
 SplashScreen.preventAutoHideAsync();
@@ -47,6 +51,72 @@ const BarikatDarkTheme = {
     notification: "#4B5320",
   },
 };
+
+// ═══════════ GLOBAL OFFLINE BANNER ═══════════
+function GlobalOfflineBanner() {
+  const [isConnected, setIsConnected] = useState<boolean | null>(true);
+  const translateY = useRef(new Animated.Value(-150)).current;
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      if (state.isConnected !== null) {
+        setIsConnected(state.isConnected);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (isConnected === false) {
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        bounciness: 10,
+      }).start();
+    } else {
+      Animated.timing(translateY, {
+        toValue: -150,
+        duration: 300,
+        easing: Easing.in(Easing.ease),
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isConnected, translateY]);
+
+  return (
+    <Animated.View
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: "#A01515",
+        zIndex: 99999, // Super high z-index to stay on top
+        transform: [{ translateY }],
+        paddingTop: Platform.OS === "ios" ? 55 : 35,
+        paddingBottom: 16,
+        paddingHorizontal: 24,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 12,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.5,
+        shadowRadius: 10,
+        elevation: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: "#5A0000",
+      }}
+      pointerEvents="none"
+    >
+      <WifiOff size={18} color="#FFF" />
+      <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "700", letterSpacing: 0.5, textAlign: "center", flexShrink: 1 }}>
+        İnternet bağlantısı yok. Lütfen bağlantınızı kontrol edin.
+      </Text>
+    </Animated.View>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════
 // LOCATION GUARD — Konum Kalkanı
@@ -263,24 +333,6 @@ function LocationGuard({ children }: { children: React.ReactNode }) {
           </TouchableOpacity>
 
           {/* Secondary: Retry */}
-          <TouchableOpacity
-            style={locStyles.retryBtn}
-            activeOpacity={0.7}
-            onPress={async () => {
-              const { status } =
-                await Location.requestForegroundPermissionsAsync();
-              if (status === "granted") {
-                try {
-                  await Location.requestBackgroundPermissionsAsync();
-                } catch {
-                  // ignored
-                }
-                setPermissionStatus("granted");
-              }
-            }}
-          >
-            <Text style={locStyles.retryBtnText}>TEKRAR İZİN İSTE</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Footer */}
@@ -318,6 +370,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     if (!user) {
       setUserRole(null);
       roleCheckedForId.current = null;
+      setIsRoleLoading(false);
+      return;
+    }
+
+    // Şifre sıfırlama modu aktifse rol çekmeye gerek yok — children unmount olmasın
+    if (PasswordRecoveryStore.isActive()) {
       setIsRoleLoading(false);
       return;
     }
@@ -386,16 +444,16 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     const inAuthGroup = segments[0] === "(auth)";
     const inAdminGroup = segments[0] === "admin";
     const inMemberGroup = segments[0] === "member";
-    const isForgotPassword = segments.join("/").includes("(auth)/forgot-password");
 
     const timeoutId = setTimeout(() => {
-      if (!user) {
-        if (!inAuthGroup) router.replace("/(auth)/login");
+      // Şifre sıfırlama modu aktifse HER TÜRLÜ yönlendirmeyi engelle
+      if (PasswordRecoveryStore.isActive()) {
         return;
       }
 
-      if (isForgotPassword) {
-        return; // Şifre sıfırlama esnasında OTP doğrulanınca otomatik yönlendirmeyi engelle
+      if (!user) {
+        if (!inAuthGroup) router.replace("/(auth)/login");
+        return;
       }
 
       if (userRole === "admin") {
@@ -409,7 +467,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [user, initialized, isRoleLoading, userRole, segments, navigationState?.key]);
 
   // Show loading while auth or role is resolving
-  if (!initialized || isRoleLoading) {
+  // Recovery mode aktifken loading GÖSTERMEMELİYİZ — aksi halde children unmount 
+  // olur ve forgot-password'daki router.replace çalışamaz
+  if (!initialized || (isRoleLoading && !PasswordRecoveryStore.isActive())) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4B5320" />
@@ -504,6 +564,9 @@ export default function RootLayout() {
           </LocationGuard>
         </ImageBackground>
       </View>
+
+      {/* Global Offline Banner */}
+      <GlobalOfflineBanner />
 
       {/* Premium Splash Overlay Layer */}
       {overlayVisible && (
@@ -727,22 +790,6 @@ const locStyles = StyleSheet.create({
     color: "#E0E0E0",
     fontSize: 14,
     fontWeight: "800",
-    letterSpacing: 3,
-  },
-  retryBtn: {
-    width: "100%",
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "#444",
-    borderRadius: 4,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  retryBtnText: {
-    color: "#888",
-    fontSize: 12,
-    fontWeight: "700",
     letterSpacing: 3,
   },
 

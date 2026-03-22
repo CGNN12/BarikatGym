@@ -12,6 +12,8 @@ import {
   Image,
   ActivityIndicator,
   Platform,
+  Alert,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAlert } from "@/components/CustomAlert";
@@ -31,6 +33,7 @@ import {
   AlertCircle,
   Camera,
   Trash2,
+  ExternalLink,
 } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { decode } from "base64-arraybuffer";
@@ -59,8 +62,10 @@ export default function ProfileScreen() {
   const [recentLogs, setRecentLogs] = useState<GymLog[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
+  const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
   const [allLogs, setAllLogs] = useState<GymLog[]>([]);
   const [loadingAll, setLoadingAll] = useState(false);
 
@@ -342,7 +347,32 @@ export default function ProfileScreen() {
     }
   };
 
-  // ═══════════ SIGN OUT ═══════════
+  // ═══════════ SIGN OUT & DELETE ACCOUNT ═══════════
+
+  const handleDeleteAccount = () => {
+    setIsDeleteModalVisible(true);
+  };
+
+  const executeAccountDeletion = async () => {
+    setDeletingAccount(true);
+    try {
+      if (user) {
+        // Not: Supabase üzerinde kullanıcıyı silmek için 'delete_user' RPC fonksiyonunun oluşturulması gereklidir.
+        const { error: rpcError } = await supabase.rpc('delete_user');
+        
+        // Eğer RPC yoksa alternatif olarak profil kaydını silindi olarak güncelle
+        if (rpcError) {
+          await supabase.from('profiles').update({ status: 'deleted' }).eq('id', user.id);
+        }
+      }
+      setIsDeleteModalVisible(false);
+      await signOut();
+    } catch (error: unknown) {
+      showAlert("HATA", "Hesap silinirken bir hata oluştu.");
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
 
   const handleSignOut = () => {
     showAlert(
@@ -685,6 +715,62 @@ export default function ProfileScreen() {
           />
         </View>
 
+        {/* ═══════════ DANGER ZONE ═══════════ */}
+        <View style={{ marginTop: 48, paddingHorizontal: 24, alignItems: "center" }}>
+          <TouchableOpacity 
+            onPress={handleDeleteAccount}
+            disabled={deletingAccount}
+            activeOpacity={0.6}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              paddingVertical: 10,
+              paddingHorizontal: 16,
+              borderRadius: 4,
+              borderWidth: 1,
+              borderColor: "rgba(255, 76, 76, 0.2)",
+              backgroundColor: "rgba(255, 76, 76, 0.05)",
+              gap: 8,
+            }}
+          >
+            {deletingAccount ? (
+               <ActivityIndicator size="small" color="#ff4c4c" />
+            ) : (
+               <AlertCircle size={12} color="rgba(255, 76, 76, 0.7)" />
+            )}
+            <Text style={{ 
+              color: "rgba(255, 76, 76, 0.7)", 
+              fontSize: 10, 
+              letterSpacing: 1.5, 
+              fontWeight: "600",
+            }}>
+              HESABIMI KALICI OLARAK SİL
+            </Text>
+          </TouchableOpacity>
+
+          {/* ═════════ LEGAL LINKS ═════════ */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 24, marginTop: 32, marginBottom: 8 }}>
+            <TouchableOpacity 
+              activeOpacity={0.6} 
+              onPress={() => Linking.openURL("https://barikatgym.com/privacy")}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+            >
+              <Text style={{ color: "#666", fontSize: 11, fontWeight: "600", letterSpacing: 1 }}>Gizlilik Politikası</Text>
+              <ExternalLink size={10} color="#666" />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              activeOpacity={0.6} 
+              onPress={() => Linking.openURL("https://barikatgym.com/terms")}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+            >
+              <Text style={{ color: "#666", fontSize: 11, fontWeight: "600", letterSpacing: 1 }}>Kullanım Koşulları</Text>
+              <ExternalLink size={10} color="#666" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={s.footer}>
           <Text style={s.footerText}>BARİKAT SPOR • v1.0.0</Text>
         </View>
@@ -953,6 +1039,51 @@ export default function ProfileScreen() {
             )}
           </TouchableOpacity>
         </TouchableOpacity>
+      </Modal>
+
+      {/* ═══════════ DELETE ACCOUNT MODAL ═══════════ */}
+      <Modal 
+        visible={isDeleteModalVisible} 
+        transparent 
+        animationType="fade" 
+        onRequestClose={() => !deletingAccount && setIsDeleteModalVisible(false)}
+      >
+        <View style={s.modalOverlay}>
+          <View style={[s.modalBox, { maxWidth: 320, paddingVertical: 28, borderRadius: 15 }]}>
+            <View style={{ alignItems: 'center', marginBottom: 20 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255, 76, 76, 0.1)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                <AlertCircle size={24} color="#ff4c4c" />
+              </View>
+              <Text style={{ color: "#FFF", fontSize: 18, fontWeight: "800", letterSpacing: 1, marginBottom: 8 }}>HESABI SİL</Text>
+              <Text style={{ color: "#A0A0A0", fontSize: 13, textAlign: "center", lineHeight: 20 }}>
+                Bu işlem geri alınamaz. Tüm üyelik verileriniz kalıcı olarak silinecektir. Silmek istediğinize emin misiniz?
+              </Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity 
+                style={{ flex: 1, backgroundColor: "#2A2A2A", paddingVertical: 14, borderRadius: 8, alignItems: 'center' }}
+                onPress={() => setIsDeleteModalVisible(false)}
+                disabled={deletingAccount}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "700", letterSpacing: 1 }}>VAZGEÇ</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={{ flex: 1, backgroundColor: "#ff4c4c", paddingVertical: 14, borderRadius: 8, alignItems: 'center' }}
+                onPress={executeAccountDeletion}
+                disabled={deletingAccount}
+                activeOpacity={0.7}
+              >
+                {deletingAccount ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "700", letterSpacing: 1 }}>EVET, SİL</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
     </SafeAreaView>

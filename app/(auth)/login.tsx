@@ -32,6 +32,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const { showAlert } = useAlert();
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -127,6 +128,7 @@ export default function LoginScreen() {
   const handleSubmit = async () => {
     if (!validate()) return;
     setErrors({});
+    setIsSubmitting(true);
 
     try {
       if (isSignUp) {
@@ -196,6 +198,8 @@ export default function LoginScreen() {
         errorMessage,
         [{ text: "ANLAŞILDI", style: "cancel" }]
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -339,7 +343,8 @@ export default function LoginScreen() {
                 <TacticalButton
                   title={isSignUp ? "KAYIT OL" : "GİRİŞ YAP"}
                   onPress={handleSubmit}
-                  loading={loading}
+                  loading={loading || isSubmitting}
+                  disabled={isSubmitting}
                 />
               </View>
 

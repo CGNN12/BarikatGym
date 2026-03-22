@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, Animated, Vibration, StyleSheet } from "react-native";
+import { View, Text, Animated, Vibration, StyleSheet, Modal, TouchableOpacity, AppState, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   CameraView,
   useCameraPermissions,
   type BarcodeScanningResult,
 } from "expo-camera";
+import * as Location from "expo-location";
 import { useRouter, useFocusEffect } from "expo-router";
 import {
   ScanLine,
@@ -61,6 +62,7 @@ export default function ScanScreen() {
   const [membershipBlocked, setMembershipBlocked] = useState(false);
   const [blockReason, setBlockReason] = useState<"inactive" | "expired" | "frozen" | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [showProminentDisclosure, setShowProminentDisclosure] = useState(false);
 
   // ─── GPS States ───
   const [gpsPhase, setGpsPhase] = useState<GpsPhase>("idle");
@@ -75,6 +77,13 @@ export default function ScanScreen() {
   useEffect(() => {
     // Check location permission on mount
     checkLocationPermission().then(setLocationPermitted);
+
+    // AppState listener for returning from Settings
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        runLocationCheck();
+      }
+    });
 
     // Start GPS pulse animation
     const animation = Animated.loop(
@@ -92,14 +101,24 @@ export default function ScanScreen() {
       ])
     );
     animation.start();
-    return () => animation.stop();
+    return () => {
+      animation.stop();
+      subscription.remove();
+    };
   }, []);
 
   // ═══════════ LOCATION PERMISSION CHECK ON MOUNT ═══════════
   const runLocationCheck = useCallback(async () => {
     try {
-      await requestLocationPermission();
-      setLocationPermitted(true);
+      const isGranted = await checkLocationPermission();
+      if (isGranted) {
+        setLocationPermitted(true);
+        setShowProminentDisclosure(false);
+      } else {
+        setLocationPermitted(false);
+        // Only show modal if camera is permitted and page is focused, but to be safe we'll just check status.
+        setShowProminentDisclosure(true);
+      }
     } catch {
       // silent
     }
@@ -228,13 +247,14 @@ export default function ScanScreen() {
 
   const verifyLocation = async (): Promise<LocationVerification | null> => {
 
-    // Step 1: Request permission
+    // Step 1: Check permission locally without prompting
     setGpsPhase("requesting_permission");
-    const hasPermission = await requestLocationPermission();
+    let hasPermission = await checkLocationPermission();
 
     if (!hasPermission) {
       setGpsPhase("denied");
       setLocationPermitted(false);
+      setShowProminentDisclosure(true);
       return null;
     }
 
@@ -741,6 +761,67 @@ export default function ScanScreen() {
           />
         </View>
       )}
+
+      {/* ═══════════ PROMINENT DISCLOSURE MODAL ═══════════ */}
+      <Modal visible={showProminentDisclosure} transparent animationType="fade">
+        <View style={s.prominentOverlay}>
+          <View style={s.prominentBox}>
+            <View style={s.prominentIconWrap}>
+              <MapPin size={32} color="#D4A017" />
+            </View>
+            <Text style={s.prominentTitle}>Konum İzniniz Gerekiyor</Text>
+            <Text style={s.prominentBody}>
+              Barikat Gym uygulaması, turnikelerden geçiş yapabilmeniz için konum verilerinizi toplar ve kullanır. Bu özellik sayesinde, sadece spor salonuna yeterince yakın olduğunuzda giriş QR kodunuzu oluşturabilirsiniz. Konum verileriniz arka planda takip edilmez.
+            </Text>
+            <View style={s.prominentBtnRow}>
+              <TouchableOpacity
+                style={s.prominentBtnCancel}
+                activeOpacity={0.7}
+                onPress={() => {
+                  setShowProminentDisclosure(false);
+                  setLocationPermitted(false);
+                }}
+              >
+                <Text style={s.prominentBtnCancelText}>VAZGEÇ</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.prominentBtnConfirm}
+                activeOpacity={0.7}
+                onPress={async () => {
+                  try {
+                    const currentStatus = await Location.getForegroundPermissionsAsync();
+                    
+                    if (currentStatus.canAskAgain) {
+                      setShowProminentDisclosure(false);
+                      const granted = await requestLocationPermission();
+                      setLocationPermitted(granted);
+                      
+                      if (granted && gpsPhase === "denied") {
+                        setGpsPhase("idle");
+                      }
+                    } else {
+                      // OS permanently denied
+                      showAlert(
+                        "İZİNLER REDDEDİLMİŞ",
+                        "Konum erişimi daha önce reddedilmiş. Lütfen cihaz ayarlarından Barikat Gym'e konum izni verin.",
+                        [
+                          { text: "VAZGEÇ", style: "cancel", onPress: () => { setShowProminentDisclosure(false); } },
+                          { text: "AYARLARA GİT", onPress: () => { Linking.openSettings(); setShowProminentDisclosure(false); } }
+                        ]
+                      );
+                    }
+                  } catch (e) {
+                    console.error("Location request error", e);
+                  }
+                }}
+              >
+                <Text style={s.prominentBtnConfirmText}>ANLADIM VE İZİN VER</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -926,5 +1007,82 @@ const s = StyleSheet.create({
     letterSpacing: 3,
     textTransform: "uppercase",
     textAlign: "center",
+  },
+
+  // ═══════════ PROMINENT DISCLOSURE STYLES ═══════════
+  prominentOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  prominentBox: {
+    width: "100%",
+    backgroundColor: "#1A1A1A",
+    borderRadius: 15,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "rgba(212,160,23,0.3)",
+    alignItems: "center",
+  },
+  prominentIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(212,160,23,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "rgba(212,160,23,0.4)"
+  },
+  prominentTitle: {
+    color: "#E0E0E0",
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: 1,
+    marginBottom: 12,
+    textAlign: "center"
+  },
+  prominentBody: {
+    color: "#A0A0A0",
+    fontSize: 11,
+    lineHeight: 18,
+    textAlign: "center",
+    marginBottom: 28,
+  },
+  prominentBtnRow: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  prominentBtnCancel: {
+    flex: 1,
+    backgroundColor: "#2A2A2A",
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  prominentBtnCancelText: {
+    color: "#E0E0E0",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  prominentBtnConfirm: {
+    flex: 1.5,
+    backgroundColor: "#D4A017",
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  prominentBtnConfirmText: {
+    color: "#111",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
   },
 });
