@@ -552,11 +552,11 @@ export default function RootLayout() {
             <ThemeProvider value={BarikatDarkTheme}>
               <AlertProvider>
                 <AuthGuard>
-                  <Stack 
-                    screenOptions={{ 
+                  <Stack
+                    screenOptions={{
                       headerShown: false,
                       contentStyle: { backgroundColor: 'transparent' }
-                    }} 
+                    }}
                   />
                 </AuthGuard>
               </AlertProvider>
