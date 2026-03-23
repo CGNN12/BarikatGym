@@ -118,20 +118,14 @@ export default function AdminProfileScreen() {
   const executeAccountDeletion = async () => {
     setDeletingAccount(true);
     try {
-      if (adminUserId) {
-        // Not: Supabase üzerinde kullanıcıyı silmek için 'delete_user' RPC fonksiyonunun oluşturulması gereklidir.
-        const { error: rpcError } = await supabase.rpc('delete_user');
-        
-        // Eğer RPC yoksa alternatif olarak profil kaydını silindi olarak güncelle
-        if (rpcError) {
-          await supabase.from('profiles').update({ status: 'deleted' }).eq('id', adminUserId);
-        }
-      }
+      const { error: rpcError } = await supabase.rpc('delete_user');
+      if (rpcError) throw new Error(rpcError.message);
       setIsDeleteModalVisible(false);
       await supabase.auth.signOut();
       router.replace("/(auth)/login");
     } catch (error: unknown) {
-      showAlert("HATA", "Hesap silinirken bir hata oluştu.");
+      const msg = error instanceof Error ? error.message : "Bilinmeyen hata";
+      showAlert("HATA", `Hesap silinemedi: ${msg}`);
     } finally {
       setDeletingAccount(false);
     }
@@ -485,12 +479,12 @@ export default function AdminProfileScreen() {
         </View>
 
         {/* ════════ MIDDLE SECTIONS WRAPPER ════════ */}
-        <View style={{ flex: 1, justifyContent: "space-evenly", marginTop: -8, marginBottom: 8 }}>
-          
+        <View style={{ flex: 1, justifyContent: "space-evenly", marginTop: 8, marginBottom: 16, gap: 8 }}>
+
           {/* STATS */}
-          <View style={[st.statsSection, { marginBottom: 0 }]}>
+          <View style={st.statsSection}>
             <View style={st.sepRow}><View style={st.sepLine} /><Text style={st.sepLabel}>İSTATİSTİKLER</Text><View style={st.sepLine} /></View>
-            <View style={[st.statsGrid, { marginBottom: 0 }]}>
+            <View style={st.statsGrid}>
               <View style={st.statCard}>
                 <View style={[st.statIcon, { backgroundColor: "rgba(75,83,32,0.2)" }]}><Users size={18} color="#4B5320" /></View>
                 <Text style={st.statValue}>{totalMembers}</Text>
@@ -505,7 +499,7 @@ export default function AdminProfileScreen() {
           </View>
 
           {/* INVITE CODE */}
-          <View style={[st.inviteSection, { marginBottom: 0 }]}>
+          <View style={st.inviteSection}>
             <View style={st.sepRow}><View style={st.sepLine} /><Text style={st.sepLabel}>ANTRENÖR DAVETİ</Text><View style={st.sepLine} /></View>
             <TouchableOpacity onPress={startCountdown} style={st.inviteBtn} activeOpacity={0.7} disabled={generatingCode}>
               {generatingCode ? <ActivityIndicator color="#E0E0E0" size="small" /> : <Ticket size={18} color="#4B5320" />}
@@ -515,7 +509,7 @@ export default function AdminProfileScreen() {
           </View>
 
           {/* LOGOUT */}
-          <View style={[st.logoutSection, { marginBottom: 0 }]}>
+          <View style={st.logoutSection}>
             <TouchableOpacity onPress={handleSignOut} style={st.logoutBtn} activeOpacity={0.7}>
               <LogOut size={20} color="#C0392B" />
               <Text style={st.logoutText}>SİSTEMDEN ÇIK</Text>
@@ -886,8 +880,8 @@ const st = StyleSheet.create({
   adminEmail: { color: "#888", fontSize: 13, fontWeight: "500", letterSpacing: 0.5 },
 
 
-  statsSection: { marginBottom: 28 },
-  sepRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
+  statsSection: { marginBottom: 8 },
+  sepRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
   sepLine: { flex: 1, height: 1, backgroundColor: "#333" },
   sepLabel: { color: "#555", fontSize: 9, fontWeight: "700", letterSpacing: 3 },
   statsGrid: { flexDirection: "row", gap: 10, marginBottom: 10 },
@@ -897,12 +891,12 @@ const st = StyleSheet.create({
   statLabel: { color: "#666", fontSize: 8, fontWeight: "700", letterSpacing: 2 },
 
 
-  logoutSection: { marginBottom: 24 },
+  logoutSection: { marginBottom: 8 },
   logoutBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12, paddingVertical: 18, borderRadius: 6, backgroundColor: "rgba(139,0,0,0.12)", borderWidth: 1.5, borderColor: "rgba(139,0,0,0.4)" },
   logoutText: { color: "#C0392B", fontSize: 14, fontWeight: "800", letterSpacing: 4 },
   logoutHint: { color: "#444", fontSize: 10, textAlign: "center", marginTop: 10, letterSpacing: 0.5 },
 
-  inviteSection: { marginBottom: 28 },
+  inviteSection: { marginBottom: 8 },
   inviteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12, paddingVertical: 16, borderRadius: 6, backgroundColor: "rgba(75,83,32,0.15)", borderWidth: 1.5, borderColor: "rgba(75,83,32,0.5)" },
   inviteBtnText: { color: "#E0E0E0", fontSize: 12, fontWeight: "800", letterSpacing: 3 },
   inviteHint: { color: "#444", fontSize: 10, textAlign: "center", marginTop: 10, letterSpacing: 0.5 },

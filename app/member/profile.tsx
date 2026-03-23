@@ -356,19 +356,13 @@ export default function ProfileScreen() {
   const executeAccountDeletion = async () => {
     setDeletingAccount(true);
     try {
-      if (user) {
-        // Not: Supabase üzerinde kullanıcıyı silmek için 'delete_user' RPC fonksiyonunun oluşturulması gereklidir.
-        const { error: rpcError } = await supabase.rpc('delete_user');
-        
-        // Eğer RPC yoksa alternatif olarak profil kaydını silindi olarak güncelle
-        if (rpcError) {
-          await supabase.from('profiles').update({ status: 'deleted' }).eq('id', user.id);
-        }
-      }
+      const { error: rpcError } = await supabase.rpc('delete_user');
+      if (rpcError) throw new Error(rpcError.message);
       setIsDeleteModalVisible(false);
       await signOut();
     } catch (error: unknown) {
-      showAlert("HATA", "Hesap silinirken bir hata oluştu.");
+      const msg = error instanceof Error ? error.message : "Bilinmeyen hata";
+      showAlert("HATA", `Hesap silinemedi: ${msg}`);
     } finally {
       setDeletingAccount(false);
     }
