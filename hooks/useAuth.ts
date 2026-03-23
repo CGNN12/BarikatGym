@@ -86,7 +86,7 @@ export function useAuth() {
   }, []);
 
   const signUp = useCallback(
-    async (email: string, password: string, fullName: string) => {
+    async (email: string, password: string, fullName: string, role: string = "member") => {
       try {
         setAuthState((prev) => ({ ...prev, loading: true }));
 
@@ -106,6 +106,7 @@ export function useAuth() {
           await supabase.from("profiles").upsert({
             id: data.user.id,
             full_name: fullName,
+            role,
             status: "inactive",
             updated_at: new Date().toISOString(),
           });

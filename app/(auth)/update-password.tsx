@@ -384,7 +384,7 @@ export default function UpdatePasswordScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "transparent",
+    backgroundColor: "#121212",
   },
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1 },

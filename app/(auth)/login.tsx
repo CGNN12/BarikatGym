@@ -153,13 +153,10 @@ export default function LoginScreen() {
         }
 
         // ═══ SIGN UP ═══
-        const result = await signUp(email.trim(), password, fullName.trim());
+        const result = await signUp(email.trim(), password, fullName.trim(), validInvite ? "admin" : "member");
 
-        // ═══ POST-SIGNUP: activate invite code ═══
+        // ═══ POST-SIGNUP: mark invite code as used ═══
         if (validInvite && result?.user) {
-          // Set role to admin
-          await supabase.from("profiles").update({ role: "admin" }).eq("id", result.user.id);
-          // Mark invite as used
           await supabase.from("admin_invites").update({
             is_used: true,
             used_by: result.user.id,
@@ -383,7 +380,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "transparent" },
+  safeArea: { flex: 1, backgroundColor: "#121212" },
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1 },
   container: {
