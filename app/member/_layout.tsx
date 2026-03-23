@@ -6,6 +6,7 @@ import { View, Text, Platform, StyleSheet, AppState } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/hooks/useAuth";
 import { startSneakDetection } from "@/utils/sneakDetection";
+import { registerBackgroundAutoCheckout } from "@/utils/backgroundTasks";
 import { supabase } from "@/lib/supabase";
 import { Profile } from "@/lib/types";
 import { checkLocationPermission, verifyGymProximity } from "@/lib/location";
@@ -153,7 +154,19 @@ export default function TabsLayout() {
       }
     };
 
+    const initAutoCheckout = async () => {
+      try {
+        await registerBackgroundAutoCheckout();
+      } catch (err) {
+        console.warn(
+          "⚠️ [OTOMATIK CIKIS] Başlatılamadı (Expo Go sınırlaması olabilir):",
+          err,
+        );
+      }
+    };
+
     initSneakDetection();
+    initAutoCheckout();
   }, [user]);
 
   // ═══════════ DİNAMİK RENK HESAPLA ═══════════

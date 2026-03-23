@@ -20,7 +20,7 @@ export function calculateMembershipStatus(
 
   // Farkı gün cinsinden bul (1000ms * 60sn * 60dk * 24sa)
   const diffTime = endDate.getTime() - today.getTime();
-  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
   let finalStatus = currentStatus || "inactive";
   let remainingDays = 0;

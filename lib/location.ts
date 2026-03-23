@@ -123,8 +123,12 @@ export async function verifyGymProximity(): Promise<LocationVerification> {
     GYM_CONFIG.longitude,
   );
 
+  // Accuracy buffer: cihazın GPS sapma payını çıkararak etkin mesafeyi hesapla.
+  // Örnek: 110m uzakta + 20m accuracy → effectiveDistance = 90m → içeri alınır.
+  const effectiveDistance = accuracy ? Math.max(0, distance - accuracy) : distance;
+
   return {
-    verified: distance <= GYM_CONFIG.radiusMeters,
+    verified: effectiveDistance <= GYM_CONFIG.radiusMeters,
     distanceMeters: Math.round(distance * 10) / 10, // 1 decimal
     accuracyMeters: accuracy ? Math.round(accuracy * 10) / 10 : null,
     latitude,

@@ -9,19 +9,15 @@
 create table if not exists public.profiles (
     id uuid references auth.users on delete cascade primary key,
     full_name text not null default '',
-    membership_start timestamp
-    with
-        time zone default now (),
-        membership_end timestamp
-    with
-        time zone default (now () + interval '30 days'),
-        avatar_url text,
-        created_at timestamp
-    with
-        time zone default now (),
-        updated_at timestamp
-    with
-        time zone default now ()
+    role text check (role in ('admin', 'member')) default 'member' not null,
+    status text check (status in ('active', 'inactive', 'frozen', 'pending', 'expired')) default 'inactive' not null,
+    membership_start timestamp with time zone default now(),
+    membership_end timestamp with time zone default (now() + interval '30 days'),
+    avatar_url text,
+    is_inside boolean default false not null,
+    freeze_quota integer default 0 not null,
+    created_at timestamp with time zone default now(),
+    updated_at timestamp with time zone default now()
 );
 
 -- Enable Row Level Security
@@ -290,6 +286,78 @@ create index if not exists idx_notifications_created_at on public.notifications 
 -- NOTIFICATIONS: Enable Realtime
 -- ─────────────────────────────────────────────────────────────
 alter publication supabase_realtime add table public.notifications;
+
+-- ─────────────────────────────────────────────────────────────
+-- 7. ADMIN_INVITES TABLE (Admin davet kodu sistemi)
+-- ─────────────────────────────────────────────────────────────
+create table if not exists public.admin_invites (
+    id uuid default gen_random_uuid() primary key,
+    code text not null unique,
+    is_used boolean default false not null,
+    used_by uuid references public.profiles(id) on delete set null,
+    created_at timestamp with time zone default now() not null
+);
+
+-- Enable Row Level Security
+alter table public.admin_invites enable row level security;
+
+-- Anyone can check if a code is valid (needed during signup, before user is authenticated)
+create policy "Anyone can read invite codes" on public.admin_invites for
+select using (true);
+
+-- Only admins can insert new invite codes
+create policy "Admins can insert invite codes" on public.admin_invites for insert
+with check (
+    exists (
+        select 1 from public.profiles
+        where id = auth.uid() and role = 'admin'
+    )
+);
+
+-- Anyone authenticated can update (mark as used during signup flow)
+create policy "Authenticated users can use invite codes" on public.admin_invites for
+update using (auth.role() = 'authenticated');
+
+-- Only admins can delete invite codes
+create policy "Admins can delete invite codes" on public.admin_invites for delete using (
+    exists (
+        select 1 from public.profiles
+        where id = auth.uid() and role = 'admin'
+    )
+);
+
+-- Index for fast code lookup
+create index if not exists idx_admin_invites_code on public.admin_invites (code);
+create index if not exists idx_admin_invites_is_used on public.admin_invites (is_used) where is_used = false;
+
+-- ─────────────────────────────────────────────────────────────
+-- 8. STORAGE: avatars bucket
+-- Not: Bu SQL'i çalıştırmadan önce Supabase Dashboard > Storage'dan
+--      "avatars" adında public bir bucket oluşturun.
+--      Ardından aşağıdaki RLS politikalarını ekleyin.
+-- ─────────────────────────────────────────────────────────────
+
+-- Kullanıcılar kendi avatar klasörüne upload edebilir
+create policy "Users can upload own avatar"
+on storage.objects for insert
+with check (
+    bucket_id = 'avatars'
+    and auth.uid() is not null
+);
+
+-- Herkes avatarları görebilir (public bucket)
+create policy "Anyone can view avatars"
+on storage.objects for select
+using (bucket_id = 'avatars');
+
+-- Kullanıcılar kendi avatarlarını güncelleyebilir/silebilir
+create policy "Users can update own avatar"
+on storage.objects for update
+using (bucket_id = 'avatars' and auth.uid() is not null);
+
+create policy "Users can delete own avatar"
+on storage.objects for delete
+using (bucket_id = 'avatars' and auth.uid() is not null);
 
 -- ═══════════════════════════════════════════════════════════════
 -- DONE! Your database is ready.

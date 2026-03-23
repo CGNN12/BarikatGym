@@ -143,9 +143,12 @@ async function checkQRAndNotify(todayStr: string): Promise<void> {
     const userName = profile?.full_name ?? "Bilinmeyen Üye";
 
     // ─── Check today's QR scan (gym_logs entries) ───
-    // Bugünün başlangıcı ve bitişi
-    const dayStart = `${todayStr}T00:00:00.000Z`;
-    const dayEnd = `${todayStr}T23:59:59.999Z`;
+    // Bugünün başlangıcı ve bitişi — yerel saati UTC'ye çevirerek DB ile eşleştir
+    // Türkiye UTC+3: yerel gece yarısı = UTC 21:00 (önceki gün)
+    const localMidnightStart = new Date(`${todayStr}T00:00:00`); // yerel gece yarısı başı
+    const localMidnightEnd = new Date(`${todayStr}T23:59:59.999`); // yerel gün sonu
+    const dayStart = localMidnightStart.toISOString();
+    const dayEnd = localMidnightEnd.toISOString();
 
     const { data: todayLogs, error: logsError } = await supabase
       .from("gym_logs")

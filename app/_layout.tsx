@@ -215,7 +215,7 @@ function LocationGuard({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {
         console.error("❌ [LOCATION GUARD] Permission request error:", err);
-        setPermissionStatus("granted"); // Hata durumunda kilitleme
+        setPermissionStatus("denied"); // Hata durumunda erişimi engelle
       }
     };
 
